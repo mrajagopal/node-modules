@@ -57,7 +57,7 @@ else
 if(program.local)
 {
   var epochTimeInSeconds = parseInt(program.time);
-  
+
   // The 1000 multiplier converts it to millisec units
   var d = new Date(epochTimeInSeconds*1000);
   console.log(d.toString());
@@ -66,9 +66,9 @@ if(program.local)
 if (program.gmt)
 {
   var epochTimeInSeconds = parseInt(program.time);
-  
+
   // The 1000 multiplier converts it to millisec units
-  var d = new Date(epochTimeInSeconds*1000); 
+  var d = new Date(epochTimeInSeconds*1000);
   console.log(d.toUTCString());
 }
 
@@ -77,7 +77,7 @@ if (program.timezone)
   var epochTimeInSeconds = parseInt(program.time) + (parseFloat(program.timezone)*60*60);
 
   // The 1000 multiplier converts it to millisec units
-  var d = new Date(epochTimeInSeconds*1000); 
+  var d = new Date(epochTimeInSeconds*1000);
   var timezoneDateString = weekMap[d.getDay()] + ' ';
   timezoneDateString += monthMap[d.getMonth()] + ' ';
   timezoneDateString += d.getDate() + ' ';
@@ -85,7 +85,7 @@ if (program.timezone)
   timezoneDateString += d.getHours() + ':';
   timezoneDateString += d.getMinutes() + ':';
   timezoneDateString += d.getSeconds() + ' ';
-  timezoneDateString += "GMT" + program.timezone;
+  timezoneDateString += "GMT" + (parseFloat(program.timezone) > 0 ? '+' : '-') + parseFloat(program.timezone);
 
-  console.log(timezoneDateString); 
+  console.log(timezoneDateString);
 }
