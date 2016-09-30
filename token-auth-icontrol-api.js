@@ -1,18 +1,19 @@
-//curl -k  -X POST -u admin:changeme -d "{'user': {'link':'https://192.168.218.10/mgmt/shared/authz/users/admin'}, 'timeout': 1200, 'address':'192.168.218.1'}"  https://192.168.218.10/mgmt/shared/authz/tokens
+//curl -k  -X POST -u admin:changeme -d "{'user': {'link':'https://192.168.218.150/mgmt/shared/authz/users/admin'}, 'timeout': 1200, 'address':'192.168.218.1'}"  https://192.168.218.150/mgmt/shared/authz/tokens
 //curl -k  -X POST -u admin:changeme -d "{'user': {'link':'https://192.168.218.15/mgmt/shared/authz/users/admin'}, 'timeout': 1200, 'address':'192.168.218.1'}"  https://192.168.218.15/mgmt/shared/authz/tokens
+//curl -H "X-F5-Auth-Token: OGZUQAXH6BNYMGZQ33K2VVMABG" https://localhost/mgmt/shared/echo
 
 var https = require('https');
 // var username = 'admin';
 // var password = 'changeme';
 // var password = 'admin';
 var iControlRESTUrl = '/mgmt/shared/authz/tokens';
-var restServer = '172.24.18.36';
-var maxTokenRequest = 30000;
+var restServer = '192.168.218.150';
+var maxTokenRequest = 1;
 var count = 0;
 
 var data = 
 {
-	'user': {'link':'https://172.24.18.36/mgmt/shared/authz/users/admin'}, 
+	'user': {'link':'https://192.168.218.150/mgmt/shared/authz/users/admin'}, 
 	'timeout': 1200,
 	'address':'192.168.218.1'
 };
@@ -46,7 +47,7 @@ function processResponse(resp)
 
 	resp.on('data', function(body)
 	{
-		// console.log(JSON.parse(body));
+		console.log(JSON.parse(body));
 	});
 
 	resp.on('error', function(e)

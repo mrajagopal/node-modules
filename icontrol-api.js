@@ -1,10 +1,11 @@
 // curl -k -u admin:changeme https://192.168.218.10/mgmt/tm/cm/syncStatus
 // curl -k -u admin:changeme https://192.168.218.10/mgmt/tm/ltm/virtual?$filter=partition+eq+Common\&\$select=name%2Cdestination
+//curl -s -k -u admin:admin --request PATCH -H "Content-type: application/json" --data '{"description": "hello Madhu"}' https://192.168.218.10/mgmt/tm/ltm/virtual/TestSAt
 var https = require('https');
 var util = require('util');
 var username = 'admin';
 var password = 'changeme';
-var iControlRESTUrl = '/mgmt/tm/cm/syncStatus';
+var iControlRESTUrl = '/mgmt/tm/cm/sync-status';
 // var restServer = '192.168.218.10';
 var restServer = '192.168.218.15';
 // var restServer = '192.168.218.25';
