@@ -1,1 +1,2539 @@
-This is Madhu's file
+cdqkview <qkview number>
+cdsr <SR number>
+
+core_path mcpd.bld656.0.core.gz
+f5_load_core /var/tmp/core_cache/gdb_core_data_262a6ddc29c4d7f796d0a4c27f6da725 --original-core-name=mcpd.bld656.0.core.gz
+OR
+f5_load_core --original-core-name mcpd.bld6.0.159.core.gz $(core_path mcpd.bld656.0.core.gz)
+
+corestrings $(mcpd_gdb cache -n mcpd.bld656.0.core.gz)
+
+
+Hi Cris,
+Tried to talk to you today; left a voice message.
+When you raised this ticket, you wanted to know if SOL14552 is the cause of your issue.
+You are running v11.5.3 HF2 while SOL14552 relates to lower version. Based on the information, you are not affected by this.
+We need to find out what else is causing this.
+
+telnet 192.168.99.14 80
+GET / HTTP/1.1
+host: 192.168.99.14
+<hit enter twice>
+
+
+telnet 192.168.99.10 80
+GET / HTTP/1.1
+host: 192.168.99.10
+<hit enter twice>
+
+Plan of Action:
+Troubleshooting:
+1. Get a packet capture of health monitors during the failure period
+
+
+to Tom McCurdy (privately):
+Can you share the RQ?
+from Tom McCurdy to Everyone:
+In-TMM monitoring RQ: http://fpweb.olympus.f5net.com/fptopic.asp?REQ=RQ-LTM-0001905
+to Tom McCurdy (privately):
+Thanks
+from Paul Aurich to Everyone:
+"message ID" / "bigcodes" utility on the BIG-IP
+from Tom McCurdy to Everyone:
+bigcodes - expands log codes.
+Codes are of the form "[[:xdigit:]]{8}\:".
+    With no arguments, expands strings from stdin to stdout.
+    -h -? --help -- prints help.
+    Arguments are otherwise expanded and written to stdout.
+example: cat /var/log/ltm | bigcodes | less
+example: zcat /var/log/ltm.1.gz | bigcodes | less
+
+from Paul Aurich to Everyone:
+[root@vinz:Active:In Sync] config # grep -v tmm /var/log/ltm | tail -1
+Apr 14 05:05:47 vinz notice mcpd[5630]: 010719e8:5: Virtual Address /Common/172.24.100.28 monitor status changed from UNCHECKED to UP.
+[root@vinz:Active:In Sync] config # grep 010719e8 /etc/alertd/*
+/etc/alertd/bigip_mcpd_error_maps.h:0 LOG_NOTICE        010719e8 BIGIP_MCPD_MCPDERR_VIRTUAL_ADDRESS_MON_STATUS_CHANGE "Virtual Address %s monitor status changed from %s to %s."
+from Paul Aurich to Everyone:
+What Dan is talking about ^ 
+to Mr MegaZone (privately):
+Hi, regarding the CVE, when the scripts silently failed, what did get populated on the new instance?
+from Paul Aurich to Everyone:
+http://go/562122
+
+
+
+This isn't ID530505 (good work though).
+
+
+*** INTERNAL ONLY ***
+
+#0  __pthread_kill (threadid=<optimized out>, signo=<optimized out>) at ../nptl/sysdeps/unix/sysv/linux/pthread_kill.c:69
+#1  0x0000000000ab9523 in sigsegv_handler (signum=8, info=0x1bf, ctx=0x5700003fd480) at ../kern/sys.c:3437
+#2  <signal handler called>
+#3  0x0000000000ae0d49 in tmm_panic (format=0x1e9b7c0 "../modules/hudfilter/tcp4/tcp4.c:4418: %sdata present%s") at ../lib/stdio.c:1254
+#4  0x0000000000ae0d6b in tmm_assert (message=0x0) at ../lib/stdio.c:1263
+#5  0x0000000000b5e1bd in tcp4_drop (tp=0x57000a74ed00, len=1) at ../modules/hudfilter/tcp4/tcp4.c:4418
+#6  0x0000000000b67d41 in tcp4_predack_fastpath (private=<optimized out>, tiwin=<optimized out>, tp=<optimized out>, to=<optimized out>, 
+    th=<optimized out>, pkt=<optimized out>) at ../modules/hudfilter/tcp4/tcp4.c:6657
+#7  hud_tcp4_ingress (node=0x57000a74ecc0, cf=<optimized out>, pkt=0x57000e62ed40) at ../modules/hudfilter/tcp4/tcp4.c:1873
+#8  0x0000000000b5ab9b in hudQ_drain () at ../modules/hudfilter/hudfilter.c:847
+#9  0x00000000004c71fd in device_poll (param=<optimized out>, cycle=2) at ../dev/device.c:384
+#10 0x0000000000b45a76 in tmm_loop () at ../kern/tmm.c:1260
+#11 0x0000000000551fb4 in tmm_start (order=<optimized out>, n=943) at ../kern/tmm.c:427
+#12 0x0000000000b458a9 in tmm () at ../kern/tmm.c:482
+#13 0x00002ad815266ce0 in ?? () from /wendy/tools/share/sysroots/by_source/sources/bigip/v11.6.0-hf6/src.442.0/x86_64/lib64/libc.so.6
+#14 0x00007fff5ed8db80 in ?? ()
+#15 0x0000000000000000 in ?? ()
+
+
+#5  0x0000000000b5e1bd in tcp4_drop (tp=0x57000a74ed00, len=1) at ../modules/hudfilter/tcp4/tcp4.c:4418
+4418    ../modules/hudfilter/tcp4/tcp4.c: No such file or directory.
+
+(gdb) p tp->cf->egress_mtu 
+$1 = 1500
+
+(gdb) p min_path_mtu
+$2 = 296
+
+(ruling out ID536481 & ID553916 too)
+
+(gdb) p tp->iss 
+$3 = 2531369089
+
+(gdb)  p tp->snd_una
+$4 = 2531369089
+
+(gdb) p tp->state
+$5 = TCPS_ESTABLISHED
+
+
+#7  hud_tcp4_ingress (node=0x57000a74ecc0, cf=<optimized out>, pkt=0x57000e62ed40) at ../modules/hudfilter/tcp4/tcp4.c:1873
+1873    in ../modules/hudfilter/tcp4/tcp4.c
+
+(gdb) p th->ack     
+$6 = 2531369090
+
+
+*** END INTERNAL ***
+
+
+This is ID572495. This is marked as a severe vulnerability but *** do not inform the customer yet *** 
+
+
+Does the customer want an EHF ? If yes, 11.6.1 is due this month. Do they prefer to have it on 11.6.1 and take advantage of several hundred bug and vulnerability fixes proactively? Or stick to 11.6.0 (which will not get any further bug fixes until it goes EoSD) ?
+
+
+==========================
+
+sniff_mcp -i <configsync vlan>:h "port 6699"
+
+==========================
+
+
+
+-==============ASM ============
+telnet tmm 11211
+ 
+binlookup asm_sessiondp
+ 
+get/t /81aefbeb.*/asm.session.dp:*
+===========================
+
+cdqkview <qkview number>
+cdsr <SR number>
+
+core_path mcpd.bld656.0.core.gz
+f5_load_core /var/tmp/core_cache/gdb_core_data_262a6ddc29c4d7f796d0a4c27f6da725 --original-core-name=mcpd.bld656.0.core.gz
+OR
+f5_load_core --original-core-name mcpd.bld6.0.159.core.gz $(core_path mcpd.bld656.0.core.gz)
+
+corestrings $(mcpd_gdb cache -n mcpd.bld656.0.core.gz)
+
+
+Hi Cris,
+Tried to talk to you today; left a voice message.
+When you raised this ticket, you wanted to know if SOL14552 is the cause of your issue.
+You are running v11.5.3 HF2 while SOL14552 relates to lower version. Based on the information, you are not affected by this.
+We need to find out what else is causing this.
+
+telnet 192.168.99.14 80
+GET / HTTP/1.1
+host: 192.168.99.14
+<hit enter twice>
+
+
+telnet 192.168.99.10 80
+GET / HTTP/1.1
+host: 192.168.99.10
+<hit enter twice>
+
+Plan of Action:
+Troubleshooting:
+1. Get a packet capture of health monitors during the failure period
+
+
+to Tom McCurdy (privately):
+Can you share the RQ?
+from Tom McCurdy to Everyone:
+In-TMM monitoring RQ: http://fpweb.olympus.f5net.com/fptopic.asp?REQ=RQ-LTM-0001905
+to Tom McCurdy (privately):
+Thanks
+from Paul Aurich to Everyone:
+"message ID" / "bigcodes" utility on the BIG-IP
+from Tom McCurdy to Everyone:
+bigcodes - expands log codes.
+Codes are of the form "[[:xdigit:]]{8}\:".
+    With no arguments, expands strings from stdin to stdout.
+    -h -? --help -- prints help.
+    Arguments are otherwise expanded and written to stdout.
+example: cat /var/log/ltm | bigcodes | less
+example: zcat /var/log/ltm.1.gz | bigcodes | less
+
+from Paul Aurich to Everyone:
+[root@vinz:Active:In Sync] config # grep -v tmm /var/log/ltm | tail -1
+Apr 14 05:05:47 vinz notice mcpd[5630]: 010719e8:5: Virtual Address /Common/172.24.100.28 monitor status changed from UNCHECKED to UP.
+[root@vinz:Active:In Sync] config # grep 010719e8 /etc/alertd/*
+/etc/alertd/bigip_mcpd_error_maps.h:0 LOG_NOTICE        010719e8 BIGIP_MCPD_MCPDERR_VIRTUAL_ADDRESS_MON_STATUS_CHANGE "Virtual Address %s monitor status changed from %s to %s."
+from Paul Aurich to Everyone:
+What Dan is talking about ^ 
+to Mr MegaZone (privately):
+Hi, regarding the CVE, when the scripts silently failed, what did get populated on the new instance?
+from Paul Aurich to Everyone:
+http://go/562122
+
+
+
+This isn't ID530505 (good work though).
+
+
+*** INTERNAL ONLY ***
+
+#0  __pthread_kill (threadid=<optimized out>, signo=<optimized out>) at ../nptl/sysdeps/unix/sysv/linux/pthread_kill.c:69
+#1  0x0000000000ab9523 in sigsegv_handler (signum=8, info=0x1bf, ctx=0x5700003fd480) at ../kern/sys.c:3437
+#2  <signal handler called>
+#3  0x0000000000ae0d49 in tmm_panic (format=0x1e9b7c0 "../modules/hudfilter/tcp4/tcp4.c:4418: %sdata present%s") at ../lib/stdio.c:1254
+#4  0x0000000000ae0d6b in tmm_assert (message=0x0) at ../lib/stdio.c:1263
+#5  0x0000000000b5e1bd in tcp4_drop (tp=0x57000a74ed00, len=1) at ../modules/hudfilter/tcp4/tcp4.c:4418
+#6  0x0000000000b67d41 in tcp4_predack_fastpath (private=<optimized out>, tiwin=<optimized out>, tp=<optimized out>, to=<optimized out>, 
+    th=<optimized out>, pkt=<optimized out>) at ../modules/hudfilter/tcp4/tcp4.c:6657
+#7  hud_tcp4_ingress (node=0x57000a74ecc0, cf=<optimized out>, pkt=0x57000e62ed40) at ../modules/hudfilter/tcp4/tcp4.c:1873
+#8  0x0000000000b5ab9b in hudQ_drain () at ../modules/hudfilter/hudfilter.c:847
+#9  0x00000000004c71fd in device_poll (param=<optimized out>, cycle=2) at ../dev/device.c:384
+#10 0x0000000000b45a76 in tmm_loop () at ../kern/tmm.c:1260
+#11 0x0000000000551fb4 in tmm_start (order=<optimized out>, n=943) at ../kern/tmm.c:427
+#12 0x0000000000b458a9 in tmm () at ../kern/tmm.c:482
+#13 0x00002ad815266ce0 in ?? () from /wendy/tools/share/sysroots/by_source/sources/bigip/v11.6.0-hf6/src.442.0/x86_64/lib64/libc.so.6
+#14 0x00007fff5ed8db80 in ?? ()
+#15 0x0000000000000000 in ?? ()
+
+
+#5  0x0000000000b5e1bd in tcp4_drop (tp=0x57000a74ed00, len=1) at ../modules/hudfilter/tcp4/tcp4.c:4418
+4418    ../modules/hudfilter/tcp4/tcp4.c: No such file or directory.
+
+(gdb) p tp->cf->egress_mtu 
+$1 = 1500
+
+(gdb) p min_path_mtu
+$2 = 296
+
+(ruling out ID536481 & ID553916 too)
+
+(gdb) p tp->iss 
+$3 = 2531369089
+
+(gdb)  p tp->snd_una
+$4 = 2531369089
+
+(gdb) p tp->state
+$5 = TCPS_ESTABLISHED
+
+
+#7  hud_tcp4_ingress (node=0x57000a74ecc0, cf=<optimized out>, pkt=0x57000e62ed40) at ../modules/hudfilter/tcp4/tcp4.c:1873
+1873    in ../modules/hudfilter/tcp4/tcp4.c
+
+(gdb) p th->ack     
+$6 = 2531369090
+
+
+*** END INTERNAL ***
+
+
+This is ID572495. This is marked as a severe vulnerability but *** do not inform the customer yet *** 
+
+
+Does the customer want an EHF ? If yes, 11.6.1 is due this month. Do they prefer to have it on 11.6.1 and take advantage of several hundred bug and vulnerability fixes proactively? Or stick to 11.6.0 (which will not get any further bug fixes until it goes EoSD) ?
+
+
+==========================
+
+sniff_mcp -i <configsync vlan>:h "port 6699"
+
+==========================
+
+
+
+-==============ASM ============
+telnet tmm 11211
+ 
+binlookup asm_sessiondp
+ 
+get/t /81aefbeb.*/asm.session.dp:*
+===========================
+
+cdqkview <qkview number>
+cdsr <SR number>
+
+core_path mcpd.bld656.0.core.gz
+f5_load_core /var/tmp/core_cache/gdb_core_data_262a6ddc29c4d7f796d0a4c27f6da725 --original-core-name=mcpd.bld656.0.core.gz
+OR
+f5_load_core --original-core-name mcpd.bld6.0.159.core.gz $(core_path mcpd.bld656.0.core.gz)
+
+corestrings $(mcpd_gdb cache -n mcpd.bld656.0.core.gz)
+
+
+Hi Cris,
+Tried to talk to you today; left a voice message.
+When you raised this ticket, you wanted to know if SOL14552 is the cause of your issue.
+You are running v11.5.3 HF2 while SOL14552 relates to lower version. Based on the information, you are not affected by this.
+We need to find out what else is causing this.
+
+telnet 192.168.99.14 80
+GET / HTTP/1.1
+host: 192.168.99.14
+<hit enter twice>
+
+
+telnet 192.168.99.10 80
+GET / HTTP/1.1
+host: 192.168.99.10
+<hit enter twice>
+
+Plan of Action:
+Troubleshooting:
+1. Get a packet capture of health monitors during the failure period
+
+
+to Tom McCurdy (privately):
+Can you share the RQ?
+from Tom McCurdy to Everyone:
+In-TMM monitoring RQ: http://fpweb.olympus.f5net.com/fptopic.asp?REQ=RQ-LTM-0001905
+to Tom McCurdy (privately):
+Thanks
+from Paul Aurich to Everyone:
+"message ID" / "bigcodes" utility on the BIG-IP
+from Tom McCurdy to Everyone:
+bigcodes - expands log codes.
+Codes are of the form "[[:xdigit:]]{8}\:".
+    With no arguments, expands strings from stdin to stdout.
+    -h -? --help -- prints help.
+    Arguments are otherwise expanded and written to stdout.
+example: cat /var/log/ltm | bigcodes | less
+example: zcat /var/log/ltm.1.gz | bigcodes | less
+
+from Paul Aurich to Everyone:
+[root@vinz:Active:In Sync] config # grep -v tmm /var/log/ltm | tail -1
+Apr 14 05:05:47 vinz notice mcpd[5630]: 010719e8:5: Virtual Address /Common/172.24.100.28 monitor status changed from UNCHECKED to UP.
+[root@vinz:Active:In Sync] config # grep 010719e8 /etc/alertd/*
+/etc/alertd/bigip_mcpd_error_maps.h:0 LOG_NOTICE        010719e8 BIGIP_MCPD_MCPDERR_VIRTUAL_ADDRESS_MON_STATUS_CHANGE "Virtual Address %s monitor status changed from %s to %s."
+from Paul Aurich to Everyone:
+What Dan is talking about ^ 
+to Mr MegaZone (privately):
+Hi, regarding the CVE, when the scripts silently failed, what did get populated on the new instance?
+from Paul Aurich to Everyone:
+http://go/562122
+
+
+
+This isn't ID530505 (good work though).
+
+
+*** INTERNAL ONLY ***
+
+#0  __pthread_kill (threadid=<optimized out>, signo=<optimized out>) at ../nptl/sysdeps/unix/sysv/linux/pthread_kill.c:69
+#1  0x0000000000ab9523 in sigsegv_handler (signum=8, info=0x1bf, ctx=0x5700003fd480) at ../kern/sys.c:3437
+#2  <signal handler called>
+#3  0x0000000000ae0d49 in tmm_panic (format=0x1e9b7c0 "../modules/hudfilter/tcp4/tcp4.c:4418: %sdata present%s") at ../lib/stdio.c:1254
+#4  0x0000000000ae0d6b in tmm_assert (message=0x0) at ../lib/stdio.c:1263
+#5  0x0000000000b5e1bd in tcp4_drop (tp=0x57000a74ed00, len=1) at ../modules/hudfilter/tcp4/tcp4.c:4418
+#6  0x0000000000b67d41 in tcp4_predack_fastpath (private=<optimized out>, tiwin=<optimized out>, tp=<optimized out>, to=<optimized out>, 
+    th=<optimized out>, pkt=<optimized out>) at ../modules/hudfilter/tcp4/tcp4.c:6657
+#7  hud_tcp4_ingress (node=0x57000a74ecc0, cf=<optimized out>, pkt=0x57000e62ed40) at ../modules/hudfilter/tcp4/tcp4.c:1873
+#8  0x0000000000b5ab9b in hudQ_drain () at ../modules/hudfilter/hudfilter.c:847
+#9  0x00000000004c71fd in device_poll (param=<optimized out>, cycle=2) at ../dev/device.c:384
+#10 0x0000000000b45a76 in tmm_loop () at ../kern/tmm.c:1260
+#11 0x0000000000551fb4 in tmm_start (order=<optimized out>, n=943) at ../kern/tmm.c:427
+#12 0x0000000000b458a9 in tmm () at ../kern/tmm.c:482
+#13 0x00002ad815266ce0 in ?? () from /wendy/tools/share/sysroots/by_source/sources/bigip/v11.6.0-hf6/src.442.0/x86_64/lib64/libc.so.6
+#14 0x00007fff5ed8db80 in ?? ()
+#15 0x0000000000000000 in ?? ()
+
+
+#5  0x0000000000b5e1bd in tcp4_drop (tp=0x57000a74ed00, len=1) at ../modules/hudfilter/tcp4/tcp4.c:4418
+4418    ../modules/hudfilter/tcp4/tcp4.c: No such file or directory.
+
+(gdb) p tp->cf->egress_mtu 
+$1 = 1500
+
+(gdb) p min_path_mtu
+$2 = 296
+
+(ruling out ID536481 & ID553916 too)
+
+(gdb) p tp->iss 
+$3 = 2531369089
+
+(gdb)  p tp->snd_una
+$4 = 2531369089
+
+(gdb) p tp->state
+$5 = TCPS_ESTABLISHED
+
+
+#7  hud_tcp4_ingress (node=0x57000a74ecc0, cf=<optimized out>, pkt=0x57000e62ed40) at ../modules/hudfilter/tcp4/tcp4.c:1873
+1873    in ../modules/hudfilter/tcp4/tcp4.c
+
+(gdb) p th->ack     
+$6 = 2531369090
+
+
+*** END INTERNAL ***
+
+
+This is ID572495. This is marked as a severe vulnerability but *** do not inform the customer yet *** 
+
+
+Does the customer want an EHF ? If yes, 11.6.1 is due this month. Do they prefer to have it on 11.6.1 and take advantage of several hundred bug and vulnerability fixes proactively? Or stick to 11.6.0 (which will not get any further bug fixes until it goes EoSD) ?
+
+
+==========================
+
+sniff_mcp -i <configsync vlan>:h "port 6699"
+
+==========================
+
+
+
+-==============ASM ============
+telnet tmm 11211
+ 
+binlookup asm_sessiondp
+ 
+get/t /81aefbeb.*/asm.session.dp:*
+===========================
+
+cdqkview <qkview number>
+cdsr <SR number>
+
+core_path mcpd.bld656.0.core.gz
+f5_load_core /var/tmp/core_cache/gdb_core_data_262a6ddc29c4d7f796d0a4c27f6da725 --original-core-name=mcpd.bld656.0.core.gz
+OR
+f5_load_core --original-core-name mcpd.bld6.0.159.core.gz $(core_path mcpd.bld656.0.core.gz)
+
+corestrings $(mcpd_gdb cache -n mcpd.bld656.0.core.gz)
+
+
+Hi Cris,
+Tried to talk to you today; left a voice message.
+When you raised this ticket, you wanted to know if SOL14552 is the cause of your issue.
+You are running v11.5.3 HF2 while SOL14552 relates to lower version. Based on the information, you are not affected by this.
+We need to find out what else is causing this.
+
+telnet 192.168.99.14 80
+GET / HTTP/1.1
+host: 192.168.99.14
+<hit enter twice>
+
+
+telnet 192.168.99.10 80
+GET / HTTP/1.1
+host: 192.168.99.10
+<hit enter twice>
+
+Plan of Action:
+Troubleshooting:
+1. Get a packet capture of health monitors during the failure period
+
+
+to Tom McCurdy (privately):
+Can you share the RQ?
+from Tom McCurdy to Everyone:
+In-TMM monitoring RQ: http://fpweb.olympus.f5net.com/fptopic.asp?REQ=RQ-LTM-0001905
+to Tom McCurdy (privately):
+Thanks
+from Paul Aurich to Everyone:
+"message ID" / "bigcodes" utility on the BIG-IP
+from Tom McCurdy to Everyone:
+bigcodes - expands log codes.
+Codes are of the form "[[:xdigit:]]{8}\:".
+    With no arguments, expands strings from stdin to stdout.
+    -h -? --help -- prints help.
+    Arguments are otherwise expanded and written to stdout.
+example: cat /var/log/ltm | bigcodes | less
+example: zcat /var/log/ltm.1.gz | bigcodes | less
+
+from Paul Aurich to Everyone:
+[root@vinz:Active:In Sync] config # grep -v tmm /var/log/ltm | tail -1
+Apr 14 05:05:47 vinz notice mcpd[5630]: 010719e8:5: Virtual Address /Common/172.24.100.28 monitor status changed from UNCHECKED to UP.
+[root@vinz:Active:In Sync] config # grep 010719e8 /etc/alertd/*
+/etc/alertd/bigip_mcpd_error_maps.h:0 LOG_NOTICE        010719e8 BIGIP_MCPD_MCPDERR_VIRTUAL_ADDRESS_MON_STATUS_CHANGE "Virtual Address %s monitor status changed from %s to %s."
+from Paul Aurich to Everyone:
+What Dan is talking about ^ 
+to Mr MegaZone (privately):
+Hi, regarding the CVE, when the scripts silently failed, what did get populated on the new instance?
+from Paul Aurich to Everyone:
+http://go/562122
+
+
+
+This isn't ID530505 (good work though).
+
+
+*** INTERNAL ONLY ***
+
+#0  __pthread_kill (threadid=<optimized out>, signo=<optimized out>) at ../nptl/sysdeps/unix/sysv/linux/pthread_kill.c:69
+#1  0x0000000000ab9523 in sigsegv_handler (signum=8, info=0x1bf, ctx=0x5700003fd480) at ../kern/sys.c:3437
+#2  <signal handler called>
+#3  0x0000000000ae0d49 in tmm_panic (format=0x1e9b7c0 "../modules/hudfilter/tcp4/tcp4.c:4418: %sdata present%s") at ../lib/stdio.c:1254
+#4  0x0000000000ae0d6b in tmm_assert (message=0x0) at ../lib/stdio.c:1263
+#5  0x0000000000b5e1bd in tcp4_drop (tp=0x57000a74ed00, len=1) at ../modules/hudfilter/tcp4/tcp4.c:4418
+#6  0x0000000000b67d41 in tcp4_predack_fastpath (private=<optimized out>, tiwin=<optimized out>, tp=<optimized out>, to=<optimized out>, 
+    th=<optimized out>, pkt=<optimized out>) at ../modules/hudfilter/tcp4/tcp4.c:6657
+#7  hud_tcp4_ingress (node=0x57000a74ecc0, cf=<optimized out>, pkt=0x57000e62ed40) at ../modules/hudfilter/tcp4/tcp4.c:1873
+#8  0x0000000000b5ab9b in hudQ_drain () at ../modules/hudfilter/hudfilter.c:847
+#9  0x00000000004c71fd in device_poll (param=<optimized out>, cycle=2) at ../dev/device.c:384
+#10 0x0000000000b45a76 in tmm_loop () at ../kern/tmm.c:1260
+#11 0x0000000000551fb4 in tmm_start (order=<optimized out>, n=943) at ../kern/tmm.c:427
+#12 0x0000000000b458a9 in tmm () at ../kern/tmm.c:482
+#13 0x00002ad815266ce0 in ?? () from /wendy/tools/share/sysroots/by_source/sources/bigip/v11.6.0-hf6/src.442.0/x86_64/lib64/libc.so.6
+#14 0x00007fff5ed8db80 in ?? ()
+#15 0x0000000000000000 in ?? ()
+
+
+#5  0x0000000000b5e1bd in tcp4_drop (tp=0x57000a74ed00, len=1) at ../modules/hudfilter/tcp4/tcp4.c:4418
+4418    ../modules/hudfilter/tcp4/tcp4.c: No such file or directory.
+
+(gdb) p tp->cf->egress_mtu 
+$1 = 1500
+
+(gdb) p min_path_mtu
+$2 = 296
+
+(ruling out ID536481 & ID553916 too)
+
+(gdb) p tp->iss 
+$3 = 2531369089
+
+(gdb)  p tp->snd_una
+$4 = 2531369089
+
+(gdb) p tp->state
+$5 = TCPS_ESTABLISHED
+
+
+#7  hud_tcp4_ingress (node=0x57000a74ecc0, cf=<optimized out>, pkt=0x57000e62ed40) at ../modules/hudfilter/tcp4/tcp4.c:1873
+1873    in ../modules/hudfilter/tcp4/tcp4.c
+
+(gdb) p th->ack     
+$6 = 2531369090
+
+
+*** END INTERNAL ***
+
+
+This is ID572495. This is marked as a severe vulnerability but *** do not inform the customer yet *** 
+
+
+Does the customer want an EHF ? If yes, 11.6.1 is due this month. Do they prefer to have it on 11.6.1 and take advantage of several hundred bug and vulnerability fixes proactively? Or stick to 11.6.0 (which will not get any further bug fixes until it goes EoSD) ?
+
+
+==========================
+
+sniff_mcp -i <configsync vlan>:h "port 6699"
+
+==========================
+
+
+
+-==============ASM ============
+telnet tmm 11211
+ 
+binlookup asm_sessiondp
+ 
+get/t /81aefbeb.*/asm.session.dp:*
+===========================
+
+
+cdqkview <qkview number>
+cdsr <SR number>
+
+core_path mcpd.bld656.0.core.gz
+f5_load_core /var/tmp/core_cache/gdb_core_data_262a6ddc29c4d7f796d0a4c27f6da725 --original-core-name=mcpd.bld656.0.core.gz
+OR
+f5_load_core --original-core-name mcpd.bld6.0.159.core.gz $(core_path mcpd.bld656.0.core.gz)
+
+corestrings $(mcpd_gdb cache -n mcpd.bld656.0.core.gz)
+
+
+Hi Cris,
+Tried to talk to you today; left a voice message.
+When you raised this ticket, you wanted to know if SOL14552 is the cause of your issue.
+You are running v11.5.3 HF2 while SOL14552 relates to lower version. Based on the information, you are not affected by this.
+We need to find out what else is causing this.
+
+telnet 192.168.99.14 80
+GET / HTTP/1.1
+host: 192.168.99.14
+<hit enter twice>
+
+
+telnet 192.168.99.10 80
+GET / HTTP/1.1
+host: 192.168.99.10
+<hit enter twice>
+
+Plan of Action:
+Troubleshooting:
+1. Get a packet capture of health monitors during the failure period
+
+
+to Tom McCurdy (privately):
+Can you share the RQ?
+from Tom McCurdy to Everyone:
+In-TMM monitoring RQ: http://fpweb.olympus.f5net.com/fptopic.asp?REQ=RQ-LTM-0001905
+to Tom McCurdy (privately):
+Thanks
+from Paul Aurich to Everyone:
+"message ID" / "bigcodes" utility on the BIG-IP
+from Tom McCurdy to Everyone:
+bigcodes - expands log codes.
+Codes are of the form "[[:xdigit:]]{8}\:".
+    With no arguments, expands strings from stdin to stdout.
+    -h -? --help -- prints help.
+    Arguments are otherwise expanded and written to stdout.
+example: cat /var/log/ltm | bigcodes | less
+example: zcat /var/log/ltm.1.gz | bigcodes | less
+
+from Paul Aurich to Everyone:
+[root@vinz:Active:In Sync] config # grep -v tmm /var/log/ltm | tail -1
+Apr 14 05:05:47 vinz notice mcpd[5630]: 010719e8:5: Virtual Address /Common/172.24.100.28 monitor status changed from UNCHECKED to UP.
+[root@vinz:Active:In Sync] config # grep 010719e8 /etc/alertd/*
+/etc/alertd/bigip_mcpd_error_maps.h:0 LOG_NOTICE        010719e8 BIGIP_MCPD_MCPDERR_VIRTUAL_ADDRESS_MON_STATUS_CHANGE "Virtual Address %s monitor status changed from %s to %s."
+from Paul Aurich to Everyone:
+What Dan is talking about ^ 
+to Mr MegaZone (privately):
+Hi, regarding the CVE, when the scripts silently failed, what did get populated on the new instance?
+from Paul Aurich to Everyone:
+http://go/562122
+
+
+
+This isn't ID530505 (good work though).
+
+
+*** INTERNAL ONLY ***
+
+#0  __pthread_kill (threadid=<optimized out>, signo=<optimized out>) at ../nptl/sysdeps/unix/sysv/linux/pthread_kill.c:69
+#1  0x0000000000ab9523 in sigsegv_handler (signum=8, info=0x1bf, ctx=0x5700003fd480) at ../kern/sys.c:3437
+#2  <signal handler called>
+#3  0x0000000000ae0d49 in tmm_panic (format=0x1e9b7c0 "../modules/hudfilter/tcp4/tcp4.c:4418: %sdata present%s") at ../lib/stdio.c:1254
+#4  0x0000000000ae0d6b in tmm_assert (message=0x0) at ../lib/stdio.c:1263
+#5  0x0000000000b5e1bd in tcp4_drop (tp=0x57000a74ed00, len=1) at ../modules/hudfilter/tcp4/tcp4.c:4418
+#6  0x0000000000b67d41 in tcp4_predack_fastpath (private=<optimized out>, tiwin=<optimized out>, tp=<optimized out>, to=<optimized out>, 
+    th=<optimized out>, pkt=<optimized out>) at ../modules/hudfilter/tcp4/tcp4.c:6657
+#7  hud_tcp4_ingress (node=0x57000a74ecc0, cf=<optimized out>, pkt=0x57000e62ed40) at ../modules/hudfilter/tcp4/tcp4.c:1873
+#8  0x0000000000b5ab9b in hudQ_drain () at ../modules/hudfilter/hudfilter.c:847
+#9  0x00000000004c71fd in device_poll (param=<optimized out>, cycle=2) at ../dev/device.c:384
+#10 0x0000000000b45a76 in tmm_loop () at ../kern/tmm.c:1260
+#11 0x0000000000551fb4 in tmm_start (order=<optimized out>, n=943) at ../kern/tmm.c:427
+#12 0x0000000000b458a9 in tmm () at ../kern/tmm.c:482
+#13 0x00002ad815266ce0 in ?? () from /wendy/tools/share/sysroots/by_source/sources/bigip/v11.6.0-hf6/src.442.0/x86_64/lib64/libc.so.6
+#14 0x00007fff5ed8db80 in ?? ()
+#15 0x0000000000000000 in ?? ()
+
+
+#5  0x0000000000b5e1bd in tcp4_drop (tp=0x57000a74ed00, len=1) at ../modules/hudfilter/tcp4/tcp4.c:4418
+4418    ../modules/hudfilter/tcp4/tcp4.c: No such file or directory.
+
+(gdb) p tp->cf->egress_mtu 
+$1 = 1500
+
+(gdb) p min_path_mtu
+$2 = 296
+
+(ruling out ID536481 & ID553916 too)
+
+(gdb) p tp->iss 
+$3 = 2531369089
+
+(gdb)  p tp->snd_una
+$4 = 2531369089
+
+(gdb) p tp->state
+$5 = TCPS_ESTABLISHED
+
+
+#7  hud_tcp4_ingress (node=0x57000a74ecc0, cf=<optimized out>, pkt=0x57000e62ed40) at ../modules/hudfilter/tcp4/tcp4.c:1873
+1873    in ../modules/hudfilter/tcp4/tcp4.c
+
+(gdb) p th->ack     
+$6 = 2531369090
+
+
+*** END INTERNAL ***
+
+
+This is ID572495. This is marked as a severe vulnerability but *** do not inform the customer yet *** 
+
+
+Does the customer want an EHF ? If yes, 11.6.1 is due this month. Do they prefer to have it on 11.6.1 and take advantage of several hundred bug and vulnerability fixes proactively? Or stick to 11.6.0 (which will not get any further bug fixes until it goes EoSD) ?
+
+
+==========================
+
+sniff_mcp -i <configsync vlan>:h "port 6699"
+
+==========================
+
+
+
+-==============ASM ============
+telnet tmm 11211
+ 
+binlookup asm_sessiondp
+ 
+get/t /81aefbeb.*/asm.session.dp:*
+===========================
+
+cdqkview <qkview number>
+cdsr <SR number>
+
+core_path mcpd.bld656.0.core.gz
+f5_load_core /var/tmp/core_cache/gdb_core_data_262a6ddc29c4d7f796d0a4c27f6da725 --original-core-name=mcpd.bld656.0.core.gz
+OR
+f5_load_core --original-core-name mcpd.bld6.0.159.core.gz $(core_path mcpd.bld656.0.core.gz)
+
+corestrings $(mcpd_gdb cache -n mcpd.bld656.0.core.gz)
+
+
+Hi Cris,
+Tried to talk to you today; left a voice message.
+When you raised this ticket, you wanted to know if SOL14552 is the cause of your issue.
+You are running v11.5.3 HF2 while SOL14552 relates to lower version. Based on the information, you are not affected by this.
+We need to find out what else is causing this.
+
+telnet 192.168.99.14 80
+GET / HTTP/1.1
+host: 192.168.99.14
+<hit enter twice>
+
+
+telnet 192.168.99.10 80
+GET / HTTP/1.1
+host: 192.168.99.10
+<hit enter twice>
+
+Plan of Action:
+Troubleshooting:
+1. Get a packet capture of health monitors during the failure period
+
+
+to Tom McCurdy (privately):
+Can you share the RQ?
+from Tom McCurdy to Everyone:
+In-TMM monitoring RQ: http://fpweb.olympus.f5net.com/fptopic.asp?REQ=RQ-LTM-0001905
+to Tom McCurdy (privately):
+Thanks
+from Paul Aurich to Everyone:
+"message ID" / "bigcodes" utility on the BIG-IP
+from Tom McCurdy to Everyone:
+bigcodes - expands log codes.
+Codes are of the form "[[:xdigit:]]{8}\:".
+    With no arguments, expands strings from stdin to stdout.
+    -h -? --help -- prints help.
+    Arguments are otherwise expanded and written to stdout.
+example: cat /var/log/ltm | bigcodes | less
+example: zcat /var/log/ltm.1.gz | bigcodes | less
+
+from Paul Aurich to Everyone:
+[root@vinz:Active:In Sync] config # grep -v tmm /var/log/ltm | tail -1
+Apr 14 05:05:47 vinz notice mcpd[5630]: 010719e8:5: Virtual Address /Common/172.24.100.28 monitor status changed from UNCHECKED to UP.
+[root@vinz:Active:In Sync] config # grep 010719e8 /etc/alertd/*
+/etc/alertd/bigip_mcpd_error_maps.h:0 LOG_NOTICE        010719e8 BIGIP_MCPD_MCPDERR_VIRTUAL_ADDRESS_MON_STATUS_CHANGE "Virtual Address %s monitor status changed from %s to %s."
+from Paul Aurich to Everyone:
+What Dan is talking about ^ 
+to Mr MegaZone (privately):
+Hi, regarding the CVE, when the scripts silently failed, what did get populated on the new instance?
+from Paul Aurich to Everyone:
+http://go/562122
+
+
+
+This isn't ID530505 (good work though).
+
+
+*** INTERNAL ONLY ***
+
+#0  __pthread_kill (threadid=<optimized out>, signo=<optimized out>) at ../nptl/sysdeps/unix/sysv/linux/pthread_kill.c:69
+#1  0x0000000000ab9523 in sigsegv_handler (signum=8, info=0x1bf, ctx=0x5700003fd480) at ../kern/sys.c:3437
+#2  <signal handler called>
+#3  0x0000000000ae0d49 in tmm_panic (format=0x1e9b7c0 "../modules/hudfilter/tcp4/tcp4.c:4418: %sdata present%s") at ../lib/stdio.c:1254
+#4  0x0000000000ae0d6b in tmm_assert (message=0x0) at ../lib/stdio.c:1263
+#5  0x0000000000b5e1bd in tcp4_drop (tp=0x57000a74ed00, len=1) at ../modules/hudfilter/tcp4/tcp4.c:4418
+#6  0x0000000000b67d41 in tcp4_predack_fastpath (private=<optimized out>, tiwin=<optimized out>, tp=<optimized out>, to=<optimized out>, 
+    th=<optimized out>, pkt=<optimized out>) at ../modules/hudfilter/tcp4/tcp4.c:6657
+#7  hud_tcp4_ingress (node=0x57000a74ecc0, cf=<optimized out>, pkt=0x57000e62ed40) at ../modules/hudfilter/tcp4/tcp4.c:1873
+#8  0x0000000000b5ab9b in hudQ_drain () at ../modules/hudfilter/hudfilter.c:847
+#9  0x00000000004c71fd in device_poll (param=<optimized out>, cycle=2) at ../dev/device.c:384
+#10 0x0000000000b45a76 in tmm_loop () at ../kern/tmm.c:1260
+#11 0x0000000000551fb4 in tmm_start (order=<optimized out>, n=943) at ../kern/tmm.c:427
+#12 0x0000000000b458a9 in tmm () at ../kern/tmm.c:482
+#13 0x00002ad815266ce0 in ?? () from /wendy/tools/share/sysroots/by_source/sources/bigip/v11.6.0-hf6/src.442.0/x86_64/lib64/libc.so.6
+#14 0x00007fff5ed8db80 in ?? ()
+#15 0x0000000000000000 in ?? ()
+
+
+#5  0x0000000000b5e1bd in tcp4_drop (tp=0x57000a74ed00, len=1) at ../modules/hudfilter/tcp4/tcp4.c:4418
+4418    ../modules/hudfilter/tcp4/tcp4.c: No such file or directory.
+
+(gdb) p tp->cf->egress_mtu 
+$1 = 1500
+
+(gdb) p min_path_mtu
+$2 = 296
+
+(ruling out ID536481 & ID553916 too)
+
+(gdb) p tp->iss 
+$3 = 2531369089
+
+(gdb)  p tp->snd_una
+$4 = 2531369089
+
+(gdb) p tp->state
+$5 = TCPS_ESTABLISHED
+
+
+#7  hud_tcp4_ingress (node=0x57000a74ecc0, cf=<optimized out>, pkt=0x57000e62ed40) at ../modules/hudfilter/tcp4/tcp4.c:1873
+1873    in ../modules/hudfilter/tcp4/tcp4.c
+
+(gdb) p th->ack     
+$6 = 2531369090
+
+
+*** END INTERNAL ***
+
+
+This is ID572495. This is marked as a severe vulnerability but *** do not inform the customer yet *** 
+
+
+Does the customer want an EHF ? If yes, 11.6.1 is due this month. Do they prefer to have it on 11.6.1 and take advantage of several hundred bug and vulnerability fixes proactively? Or stick to 11.6.0 (which will not get any further bug fixes until it goes EoSD) ?
+
+
+==========================
+
+sniff_mcp -i <configsync vlan>:h "port 6699"
+
+==========================
+
+
+
+-==============ASM ============
+telnet tmm 11211
+ 
+binlookup asm_sessiondp
+ 
+get/t /81aefbeb.*/asm.session.dp:*
+===========================
+
+cdqkview <qkview number>
+cdsr <SR number>
+
+core_path mcpd.bld656.0.core.gz
+f5_load_core /var/tmp/core_cache/gdb_core_data_262a6ddc29c4d7f796d0a4c27f6da725 --original-core-name=mcpd.bld656.0.core.gz
+OR
+f5_load_core --original-core-name mcpd.bld6.0.159.core.gz $(core_path mcpd.bld656.0.core.gz)
+
+corestrings $(mcpd_gdb cache -n mcpd.bld656.0.core.gz)
+
+
+Hi Cris,
+Tried to talk to you today; left a voice message.
+When you raised this ticket, you wanted to know if SOL14552 is the cause of your issue.
+You are running v11.5.3 HF2 while SOL14552 relates to lower version. Based on the information, you are not affected by this.
+We need to find out what else is causing this.
+
+telnet 192.168.99.14 80
+GET / HTTP/1.1
+host: 192.168.99.14
+<hit enter twice>
+
+
+telnet 192.168.99.10 80
+GET / HTTP/1.1
+host: 192.168.99.10
+<hit enter twice>
+
+Plan of Action:
+Troubleshooting:
+1. Get a packet capture of health monitors during the failure period
+
+
+to Tom McCurdy (privately):
+Can you share the RQ?
+from Tom McCurdy to Everyone:
+In-TMM monitoring RQ: http://fpweb.olympus.f5net.com/fptopic.asp?REQ=RQ-LTM-0001905
+to Tom McCurdy (privately):
+Thanks
+from Paul Aurich to Everyone:
+"message ID" / "bigcodes" utility on the BIG-IP
+from Tom McCurdy to Everyone:
+bigcodes - expands log codes.
+Codes are of the form "[[:xdigit:]]{8}\:".
+    With no arguments, expands strings from stdin to stdout.
+    -h -? --help -- prints help.
+    Arguments are otherwise expanded and written to stdout.
+example: cat /var/log/ltm | bigcodes | less
+example: zcat /var/log/ltm.1.gz | bigcodes | less
+
+from Paul Aurich to Everyone:
+[root@vinz:Active:In Sync] config # grep -v tmm /var/log/ltm | tail -1
+Apr 14 05:05:47 vinz notice mcpd[5630]: 010719e8:5: Virtual Address /Common/172.24.100.28 monitor status changed from UNCHECKED to UP.
+[root@vinz:Active:In Sync] config # grep 010719e8 /etc/alertd/*
+/etc/alertd/bigip_mcpd_error_maps.h:0 LOG_NOTICE        010719e8 BIGIP_MCPD_MCPDERR_VIRTUAL_ADDRESS_MON_STATUS_CHANGE "Virtual Address %s monitor status changed from %s to %s."
+from Paul Aurich to Everyone:
+What Dan is talking about ^ 
+to Mr MegaZone (privately):
+Hi, regarding the CVE, when the scripts silently failed, what did get populated on the new instance?
+from Paul Aurich to Everyone:
+http://go/562122
+
+
+
+This isn't ID530505 (good work though).
+
+
+*** INTERNAL ONLY ***
+
+#0  __pthread_kill (threadid=<optimized out>, signo=<optimized out>) at ../nptl/sysdeps/unix/sysv/linux/pthread_kill.c:69
+#1  0x0000000000ab9523 in sigsegv_handler (signum=8, info=0x1bf, ctx=0x5700003fd480) at ../kern/sys.c:3437
+#2  <signal handler called>
+#3  0x0000000000ae0d49 in tmm_panic (format=0x1e9b7c0 "../modules/hudfilter/tcp4/tcp4.c:4418: %sdata present%s") at ../lib/stdio.c:1254
+#4  0x0000000000ae0d6b in tmm_assert (message=0x0) at ../lib/stdio.c:1263
+#5  0x0000000000b5e1bd in tcp4_drop (tp=0x57000a74ed00, len=1) at ../modules/hudfilter/tcp4/tcp4.c:4418
+#6  0x0000000000b67d41 in tcp4_predack_fastpath (private=<optimized out>, tiwin=<optimized out>, tp=<optimized out>, to=<optimized out>, 
+    th=<optimized out>, pkt=<optimized out>) at ../modules/hudfilter/tcp4/tcp4.c:6657
+#7  hud_tcp4_ingress (node=0x57000a74ecc0, cf=<optimized out>, pkt=0x57000e62ed40) at ../modules/hudfilter/tcp4/tcp4.c:1873
+#8  0x0000000000b5ab9b in hudQ_drain () at ../modules/hudfilter/hudfilter.c:847
+#9  0x00000000004c71fd in device_poll (param=<optimized out>, cycle=2) at ../dev/device.c:384
+#10 0x0000000000b45a76 in tmm_loop () at ../kern/tmm.c:1260
+#11 0x0000000000551fb4 in tmm_start (order=<optimized out>, n=943) at ../kern/tmm.c:427
+#12 0x0000000000b458a9 in tmm () at ../kern/tmm.c:482
+#13 0x00002ad815266ce0 in ?? () from /wendy/tools/share/sysroots/by_source/sources/bigip/v11.6.0-hf6/src.442.0/x86_64/lib64/libc.so.6
+#14 0x00007fff5ed8db80 in ?? ()
+#15 0x0000000000000000 in ?? ()
+
+
+#5  0x0000000000b5e1bd in tcp4_drop (tp=0x57000a74ed00, len=1) at ../modules/hudfilter/tcp4/tcp4.c:4418
+4418    ../modules/hudfilter/tcp4/tcp4.c: No such file or directory.
+
+(gdb) p tp->cf->egress_mtu 
+$1 = 1500
+
+(gdb) p min_path_mtu
+$2 = 296
+
+(ruling out ID536481 & ID553916 too)
+
+(gdb) p tp->iss 
+$3 = 2531369089
+
+(gdb)  p tp->snd_una
+$4 = 2531369089
+
+(gdb) p tp->state
+$5 = TCPS_ESTABLISHED
+
+
+#7  hud_tcp4_ingress (node=0x57000a74ecc0, cf=<optimized out>, pkt=0x57000e62ed40) at ../modules/hudfilter/tcp4/tcp4.c:1873
+1873    in ../modules/hudfilter/tcp4/tcp4.c
+
+(gdb) p th->ack     
+$6 = 2531369090
+
+
+*** END INTERNAL ***
+
+
+This is ID572495. This is marked as a severe vulnerability but *** do not inform the customer yet *** 
+
+
+Does the customer want an EHF ? If yes, 11.6.1 is due this month. Do they prefer to have it on 11.6.1 and take advantage of several hundred bug and vulnerability fixes proactively? Or stick to 11.6.0 (which will not get any further bug fixes until it goes EoSD) ?
+
+
+==========================
+
+sniff_mcp -i <configsync vlan>:h "port 6699"
+
+==========================
+
+
+
+-==============ASM ============
+telnet tmm 11211
+ 
+binlookup asm_sessiondp
+ 
+get/t /81aefbeb.*/asm.session.dp:*
+===========================
+
+cdqkview <qkview number>
+cdsr <SR number>
+
+core_path mcpd.bld656.0.core.gz
+f5_load_core /var/tmp/core_cache/gdb_core_data_262a6ddc29c4d7f796d0a4c27f6da725 --original-core-name=mcpd.bld656.0.core.gz
+OR
+f5_load_core --original-core-name mcpd.bld6.0.159.core.gz $(core_path mcpd.bld656.0.core.gz)
+
+corestrings $(mcpd_gdb cache -n mcpd.bld656.0.core.gz)
+
+
+Hi Cris,
+Tried to talk to you today; left a voice message.
+When you raised this ticket, you wanted to know if SOL14552 is the cause of your issue.
+You are running v11.5.3 HF2 while SOL14552 relates to lower version. Based on the information, you are not affected by this.
+We need to find out what else is causing this.
+
+telnet 192.168.99.14 80
+GET / HTTP/1.1
+host: 192.168.99.14
+<hit enter twice>
+
+
+telnet 192.168.99.10 80
+GET / HTTP/1.1
+host: 192.168.99.10
+<hit enter twice>
+
+Plan of Action:
+Troubleshooting:
+1. Get a packet capture of health monitors during the failure period
+
+
+to Tom McCurdy (privately):
+Can you share the RQ?
+from Tom McCurdy to Everyone:
+In-TMM monitoring RQ: http://fpweb.olympus.f5net.com/fptopic.asp?REQ=RQ-LTM-0001905
+to Tom McCurdy (privately):
+Thanks
+from Paul Aurich to Everyone:
+"message ID" / "bigcodes" utility on the BIG-IP
+from Tom McCurdy to Everyone:
+bigcodes - expands log codes.
+Codes are of the form "[[:xdigit:]]{8}\:".
+    With no arguments, expands strings from stdin to stdout.
+    -h -? --help -- prints help.
+    Arguments are otherwise expanded and written to stdout.
+example: cat /var/log/ltm | bigcodes | less
+example: zcat /var/log/ltm.1.gz | bigcodes | less
+
+from Paul Aurich to Everyone:
+[root@vinz:Active:In Sync] config # grep -v tmm /var/log/ltm | tail -1
+Apr 14 05:05:47 vinz notice mcpd[5630]: 010719e8:5: Virtual Address /Common/172.24.100.28 monitor status changed from UNCHECKED to UP.
+[root@vinz:Active:In Sync] config # grep 010719e8 /etc/alertd/*
+/etc/alertd/bigip_mcpd_error_maps.h:0 LOG_NOTICE        010719e8 BIGIP_MCPD_MCPDERR_VIRTUAL_ADDRESS_MON_STATUS_CHANGE "Virtual Address %s monitor status changed from %s to %s."
+from Paul Aurich to Everyone:
+What Dan is talking about ^ 
+to Mr MegaZone (privately):
+Hi, regarding the CVE, when the scripts silently failed, what did get populated on the new instance?
+from Paul Aurich to Everyone:
+http://go/562122
+
+
+
+This isn't ID530505 (good work though).
+
+
+*** INTERNAL ONLY ***
+
+#0  __pthread_kill (threadid=<optimized out>, signo=<optimized out>) at ../nptl/sysdeps/unix/sysv/linux/pthread_kill.c:69
+#1  0x0000000000ab9523 in sigsegv_handler (signum=8, info=0x1bf, ctx=0x5700003fd480) at ../kern/sys.c:3437
+#2  <signal handler called>
+#3  0x0000000000ae0d49 in tmm_panic (format=0x1e9b7c0 "../modules/hudfilter/tcp4/tcp4.c:4418: %sdata present%s") at ../lib/stdio.c:1254
+#4  0x0000000000ae0d6b in tmm_assert (message=0x0) at ../lib/stdio.c:1263
+#5  0x0000000000b5e1bd in tcp4_drop (tp=0x57000a74ed00, len=1) at ../modules/hudfilter/tcp4/tcp4.c:4418
+#6  0x0000000000b67d41 in tcp4_predack_fastpath (private=<optimized out>, tiwin=<optimized out>, tp=<optimized out>, to=<optimized out>, 
+    th=<optimized out>, pkt=<optimized out>) at ../modules/hudfilter/tcp4/tcp4.c:6657
+#7  hud_tcp4_ingress (node=0x57000a74ecc0, cf=<optimized out>, pkt=0x57000e62ed40) at ../modules/hudfilter/tcp4/tcp4.c:1873
+#8  0x0000000000b5ab9b in hudQ_drain () at ../modules/hudfilter/hudfilter.c:847
+#9  0x00000000004c71fd in device_poll (param=<optimized out>, cycle=2) at ../dev/device.c:384
+#10 0x0000000000b45a76 in tmm_loop () at ../kern/tmm.c:1260
+#11 0x0000000000551fb4 in tmm_start (order=<optimized out>, n=943) at ../kern/tmm.c:427
+#12 0x0000000000b458a9 in tmm () at ../kern/tmm.c:482
+#13 0x00002ad815266ce0 in ?? () from /wendy/tools/share/sysroots/by_source/sources/bigip/v11.6.0-hf6/src.442.0/x86_64/lib64/libc.so.6
+#14 0x00007fff5ed8db80 in ?? ()
+#15 0x0000000000000000 in ?? ()
+
+
+#5  0x0000000000b5e1bd in tcp4_drop (tp=0x57000a74ed00, len=1) at ../modules/hudfilter/tcp4/tcp4.c:4418
+4418    ../modules/hudfilter/tcp4/tcp4.c: No such file or directory.
+
+(gdb) p tp->cf->egress_mtu 
+$1 = 1500
+
+(gdb) p min_path_mtu
+$2 = 296
+
+(ruling out ID536481 & ID553916 too)
+
+(gdb) p tp->iss 
+$3 = 2531369089
+
+(gdb)  p tp->snd_una
+$4 = 2531369089
+
+(gdb) p tp->state
+$5 = TCPS_ESTABLISHED
+
+
+#7  hud_tcp4_ingress (node=0x57000a74ecc0, cf=<optimized out>, pkt=0x57000e62ed40) at ../modules/hudfilter/tcp4/tcp4.c:1873
+1873    in ../modules/hudfilter/tcp4/tcp4.c
+
+(gdb) p th->ack     
+$6 = 2531369090
+
+
+*** END INTERNAL ***
+
+
+This is ID572495. This is marked as a severe vulnerability but *** do not inform the customer yet *** 
+
+
+Does the customer want an EHF ? If yes, 11.6.1 is due this month. Do they prefer to have it on 11.6.1 and take advantage of several hundred bug and vulnerability fixes proactively? Or stick to 11.6.0 (which will not get any further bug fixes until it goes EoSD) ?
+
+
+==========================
+
+sniff_mcp -i <configsync vlan>:h "port 6699"
+
+==========================
+
+
+
+-==============ASM ============
+telnet tmm 11211
+ 
+binlookup asm_sessiondp
+ 
+get/t /81aefbeb.*/asm.session.dp:*
+===========================
+
+cdqkview <qkview number>
+cdsr <SR number>
+
+core_path mcpd.bld656.0.core.gz
+f5_load_core /var/tmp/core_cache/gdb_core_data_262a6ddc29c4d7f796d0a4c27f6da725 --original-core-name=mcpd.bld656.0.core.gz
+OR
+f5_load_core --original-core-name mcpd.bld6.0.159.core.gz $(core_path mcpd.bld656.0.core.gz)
+
+corestrings $(mcpd_gdb cache -n mcpd.bld656.0.core.gz)
+
+
+Hi Cris,
+Tried to talk to you today; left a voice message.
+When you raised this ticket, you wanted to know if SOL14552 is the cause of your issue.
+You are running v11.5.3 HF2 while SOL14552 relates to lower version. Based on the information, you are not affected by this.
+We need to find out what else is causing this.
+
+telnet 192.168.99.14 80
+GET / HTTP/1.1
+host: 192.168.99.14
+<hit enter twice>
+
+
+telnet 192.168.99.10 80
+GET / HTTP/1.1
+host: 192.168.99.10
+<hit enter twice>
+
+Plan of Action:
+Troubleshooting:
+1. Get a packet capture of health monitors during the failure period
+
+
+to Tom McCurdy (privately):
+Can you share the RQ?
+from Tom McCurdy to Everyone:
+In-TMM monitoring RQ: http://fpweb.olympus.f5net.com/fptopic.asp?REQ=RQ-LTM-0001905
+to Tom McCurdy (privately):
+Thanks
+from Paul Aurich to Everyone:
+"message ID" / "bigcodes" utility on the BIG-IP
+from Tom McCurdy to Everyone:
+bigcodes - expands log codes.
+Codes are of the form "[[:xdigit:]]{8}\:".
+    With no arguments, expands strings from stdin to stdout.
+    -h -? --help -- prints help.
+    Arguments are otherwise expanded and written to stdout.
+example: cat /var/log/ltm | bigcodes | less
+example: zcat /var/log/ltm.1.gz | bigcodes | less
+
+from Paul Aurich to Everyone:
+[root@vinz:Active:In Sync] config # grep -v tmm /var/log/ltm | tail -1
+Apr 14 05:05:47 vinz notice mcpd[5630]: 010719e8:5: Virtual Address /Common/172.24.100.28 monitor status changed from UNCHECKED to UP.
+[root@vinz:Active:In Sync] config # grep 010719e8 /etc/alertd/*
+/etc/alertd/bigip_mcpd_error_maps.h:0 LOG_NOTICE        010719e8 BIGIP_MCPD_MCPDERR_VIRTUAL_ADDRESS_MON_STATUS_CHANGE "Virtual Address %s monitor status changed from %s to %s."
+from Paul Aurich to Everyone:
+What Dan is talking about ^ 
+to Mr MegaZone (privately):
+Hi, regarding the CVE, when the scripts silently failed, what did get populated on the new instance?
+from Paul Aurich to Everyone:
+http://go/562122
+
+
+
+This isn't ID530505 (good work though).
+
+
+*** INTERNAL ONLY ***
+
+#0  __pthread_kill (threadid=<optimized out>, signo=<optimized out>) at ../nptl/sysdeps/unix/sysv/linux/pthread_kill.c:69
+#1  0x0000000000ab9523 in sigsegv_handler (signum=8, info=0x1bf, ctx=0x5700003fd480) at ../kern/sys.c:3437
+#2  <signal handler called>
+#3  0x0000000000ae0d49 in tmm_panic (format=0x1e9b7c0 "../modules/hudfilter/tcp4/tcp4.c:4418: %sdata present%s") at ../lib/stdio.c:1254
+#4  0x0000000000ae0d6b in tmm_assert (message=0x0) at ../lib/stdio.c:1263
+#5  0x0000000000b5e1bd in tcp4_drop (tp=0x57000a74ed00, len=1) at ../modules/hudfilter/tcp4/tcp4.c:4418
+#6  0x0000000000b67d41 in tcp4_predack_fastpath (private=<optimized out>, tiwin=<optimized out>, tp=<optimized out>, to=<optimized out>, 
+    th=<optimized out>, pkt=<optimized out>) at ../modules/hudfilter/tcp4/tcp4.c:6657
+#7  hud_tcp4_ingress (node=0x57000a74ecc0, cf=<optimized out>, pkt=0x57000e62ed40) at ../modules/hudfilter/tcp4/tcp4.c:1873
+#8  0x0000000000b5ab9b in hudQ_drain () at ../modules/hudfilter/hudfilter.c:847
+#9  0x00000000004c71fd in device_poll (param=<optimized out>, cycle=2) at ../dev/device.c:384
+#10 0x0000000000b45a76 in tmm_loop () at ../kern/tmm.c:1260
+#11 0x0000000000551fb4 in tmm_start (order=<optimized out>, n=943) at ../kern/tmm.c:427
+#12 0x0000000000b458a9 in tmm () at ../kern/tmm.c:482
+#13 0x00002ad815266ce0 in ?? () from /wendy/tools/share/sysroots/by_source/sources/bigip/v11.6.0-hf6/src.442.0/x86_64/lib64/libc.so.6
+#14 0x00007fff5ed8db80 in ?? ()
+#15 0x0000000000000000 in ?? ()
+
+
+#5  0x0000000000b5e1bd in tcp4_drop (tp=0x57000a74ed00, len=1) at ../modules/hudfilter/tcp4/tcp4.c:4418
+4418    ../modules/hudfilter/tcp4/tcp4.c: No such file or directory.
+
+(gdb) p tp->cf->egress_mtu 
+$1 = 1500
+
+(gdb) p min_path_mtu
+$2 = 296
+
+(ruling out ID536481 & ID553916 too)
+
+(gdb) p tp->iss 
+$3 = 2531369089
+
+(gdb)  p tp->snd_una
+$4 = 2531369089
+
+(gdb) p tp->state
+$5 = TCPS_ESTABLISHED
+
+
+#7  hud_tcp4_ingress (node=0x57000a74ecc0, cf=<optimized out>, pkt=0x57000e62ed40) at ../modules/hudfilter/tcp4/tcp4.c:1873
+1873    in ../modules/hudfilter/tcp4/tcp4.c
+
+(gdb) p th->ack     
+$6 = 2531369090
+
+
+*** END INTERNAL ***
+
+
+This is ID572495. This is marked as a severe vulnerability but *** do not inform the customer yet *** 
+
+
+Does the customer want an EHF ? If yes, 11.6.1 is due this month. Do they prefer to have it on 11.6.1 and take advantage of several hundred bug and vulnerability fixes proactively? Or stick to 11.6.0 (which will not get any further bug fixes until it goes EoSD) ?
+
+
+==========================
+
+sniff_mcp -i <configsync vlan>:h "port 6699"
+
+==========================
+
+
+
+-==============ASM ============
+telnet tmm 11211
+ 
+binlookup asm_sessiondp
+ 
+get/t /81aefbeb.*/asm.session.dp:*
+===========================
+
+cdqkview <qkview number>
+cdsr <SR number>
+
+core_path mcpd.bld656.0.core.gz
+f5_load_core /var/tmp/core_cache/gdb_core_data_262a6ddc29c4d7f796d0a4c27f6da725 --original-core-name=mcpd.bld656.0.core.gz
+OR
+f5_load_core --original-core-name mcpd.bld6.0.159.core.gz $(core_path mcpd.bld656.0.core.gz)
+
+corestrings $(mcpd_gdb cache -n mcpd.bld656.0.core.gz)
+
+
+Hi Cris,
+Tried to talk to you today; left a voice message.
+When you raised this ticket, you wanted to know if SOL14552 is the cause of your issue.
+You are running v11.5.3 HF2 while SOL14552 relates to lower version. Based on the information, you are not affected by this.
+We need to find out what else is causing this.
+
+telnet 192.168.99.14 80
+GET / HTTP/1.1
+host: 192.168.99.14
+<hit enter twice>
+
+
+telnet 192.168.99.10 80
+GET / HTTP/1.1
+host: 192.168.99.10
+<hit enter twice>
+
+Plan of Action:
+Troubleshooting:
+1. Get a packet capture of health monitors during the failure period
+
+
+to Tom McCurdy (privately):
+Can you share the RQ?
+from Tom McCurdy to Everyone:
+In-TMM monitoring RQ: http://fpweb.olympus.f5net.com/fptopic.asp?REQ=RQ-LTM-0001905
+to Tom McCurdy (privately):
+Thanks
+from Paul Aurich to Everyone:
+"message ID" / "bigcodes" utility on the BIG-IP
+from Tom McCurdy to Everyone:
+bigcodes - expands log codes.
+Codes are of the form "[[:xdigit:]]{8}\:".
+    With no arguments, expands strings from stdin to stdout.
+    -h -? --help -- prints help.
+    Arguments are otherwise expanded and written to stdout.
+example: cat /var/log/ltm | bigcodes | less
+example: zcat /var/log/ltm.1.gz | bigcodes | less
+
+from Paul Aurich to Everyone:
+[root@vinz:Active:In Sync] config # grep -v tmm /var/log/ltm | tail -1
+Apr 14 05:05:47 vinz notice mcpd[5630]: 010719e8:5: Virtual Address /Common/172.24.100.28 monitor status changed from UNCHECKED to UP.
+[root@vinz:Active:In Sync] config # grep 010719e8 /etc/alertd/*
+/etc/alertd/bigip_mcpd_error_maps.h:0 LOG_NOTICE        010719e8 BIGIP_MCPD_MCPDERR_VIRTUAL_ADDRESS_MON_STATUS_CHANGE "Virtual Address %s monitor status changed from %s to %s."
+from Paul Aurich to Everyone:
+What Dan is talking about ^ 
+to Mr MegaZone (privately):
+Hi, regarding the CVE, when the scripts silently failed, what did get populated on the new instance?
+from Paul Aurich to Everyone:
+http://go/562122
+
+
+
+This isn't ID530505 (good work though).
+
+
+*** INTERNAL ONLY ***
+
+#0  __pthread_kill (threadid=<optimized out>, signo=<optimized out>) at ../nptl/sysdeps/unix/sysv/linux/pthread_kill.c:69
+#1  0x0000000000ab9523 in sigsegv_handler (signum=8, info=0x1bf, ctx=0x5700003fd480) at ../kern/sys.c:3437
+#2  <signal handler called>
+#3  0x0000000000ae0d49 in tmm_panic (format=0x1e9b7c0 "../modules/hudfilter/tcp4/tcp4.c:4418: %sdata present%s") at ../lib/stdio.c:1254
+#4  0x0000000000ae0d6b in tmm_assert (message=0x0) at ../lib/stdio.c:1263
+#5  0x0000000000b5e1bd in tcp4_drop (tp=0x57000a74ed00, len=1) at ../modules/hudfilter/tcp4/tcp4.c:4418
+#6  0x0000000000b67d41 in tcp4_predack_fastpath (private=<optimized out>, tiwin=<optimized out>, tp=<optimized out>, to=<optimized out>, 
+    th=<optimized out>, pkt=<optimized out>) at ../modules/hudfilter/tcp4/tcp4.c:6657
+#7  hud_tcp4_ingress (node=0x57000a74ecc0, cf=<optimized out>, pkt=0x57000e62ed40) at ../modules/hudfilter/tcp4/tcp4.c:1873
+#8  0x0000000000b5ab9b in hudQ_drain () at ../modules/hudfilter/hudfilter.c:847
+#9  0x00000000004c71fd in device_poll (param=<optimized out>, cycle=2) at ../dev/device.c:384
+#10 0x0000000000b45a76 in tmm_loop () at ../kern/tmm.c:1260
+#11 0x0000000000551fb4 in tmm_start (order=<optimized out>, n=943) at ../kern/tmm.c:427
+#12 0x0000000000b458a9 in tmm () at ../kern/tmm.c:482
+#13 0x00002ad815266ce0 in ?? () from /wendy/tools/share/sysroots/by_source/sources/bigip/v11.6.0-hf6/src.442.0/x86_64/lib64/libc.so.6
+#14 0x00007fff5ed8db80 in ?? ()
+#15 0x0000000000000000 in ?? ()
+
+
+#5  0x0000000000b5e1bd in tcp4_drop (tp=0x57000a74ed00, len=1) at ../modules/hudfilter/tcp4/tcp4.c:4418
+4418    ../modules/hudfilter/tcp4/tcp4.c: No such file or directory.
+
+(gdb) p tp->cf->egress_mtu 
+$1 = 1500
+
+(gdb) p min_path_mtu
+$2 = 296
+
+(ruling out ID536481 & ID553916 too)
+
+(gdb) p tp->iss 
+$3 = 2531369089
+
+(gdb)  p tp->snd_una
+$4 = 2531369089
+
+(gdb) p tp->state
+$5 = TCPS_ESTABLISHED
+
+
+#7  hud_tcp4_ingress (node=0x57000a74ecc0, cf=<optimized out>, pkt=0x57000e62ed40) at ../modules/hudfilter/tcp4/tcp4.c:1873
+1873    in ../modules/hudfilter/tcp4/tcp4.c
+
+(gdb) p th->ack     
+$6 = 2531369090
+
+
+*** END INTERNAL ***
+
+
+This is ID572495. This is marked as a severe vulnerability but *** do not inform the customer yet *** 
+
+
+Does the customer want an EHF ? If yes, 11.6.1 is due this month. Do they prefer to have it on 11.6.1 and take advantage of several hundred bug and vulnerability fixes proactively? Or stick to 11.6.0 (which will not get any further bug fixes until it goes EoSD) ?
+
+
+==========================
+
+sniff_mcp -i <configsync vlan>:h "port 6699"
+
+==========================
+
+
+
+-==============ASM ============
+telnet tmm 11211
+ 
+binlookup asm_sessiondp
+ 
+get/t /81aefbeb.*/asm.session.dp:*
+===========================
+
+cdqkview <qkview number>
+cdsr <SR number>
+
+core_path mcpd.bld656.0.core.gz
+f5_load_core /var/tmp/core_cache/gdb_core_data_262a6ddc29c4d7f796d0a4c27f6da725 --original-core-name=mcpd.bld656.0.core.gz
+OR
+f5_load_core --original-core-name mcpd.bld6.0.159.core.gz $(core_path mcpd.bld656.0.core.gz)
+
+corestrings $(mcpd_gdb cache -n mcpd.bld656.0.core.gz)
+
+
+Hi Cris,
+Tried to talk to you today; left a voice message.
+When you raised this ticket, you wanted to know if SOL14552 is the cause of your issue.
+You are running v11.5.3 HF2 while SOL14552 relates to lower version. Based on the information, you are not affected by this.
+We need to find out what else is causing this.
+
+telnet 192.168.99.14 80
+GET / HTTP/1.1
+host: 192.168.99.14
+<hit enter twice>
+
+
+telnet 192.168.99.10 80
+GET / HTTP/1.1
+host: 192.168.99.10
+<hit enter twice>
+
+Plan of Action:
+Troubleshooting:
+1. Get a packet capture of health monitors during the failure period
+
+
+to Tom McCurdy (privately):
+Can you share the RQ?
+from Tom McCurdy to Everyone:
+In-TMM monitoring RQ: http://fpweb.olympus.f5net.com/fptopic.asp?REQ=RQ-LTM-0001905
+to Tom McCurdy (privately):
+Thanks
+from Paul Aurich to Everyone:
+"message ID" / "bigcodes" utility on the BIG-IP
+from Tom McCurdy to Everyone:
+bigcodes - expands log codes.
+Codes are of the form "[[:xdigit:]]{8}\:".
+    With no arguments, expands strings from stdin to stdout.
+    -h -? --help -- prints help.
+    Arguments are otherwise expanded and written to stdout.
+example: cat /var/log/ltm | bigcodes | less
+example: zcat /var/log/ltm.1.gz | bigcodes | less
+
+from Paul Aurich to Everyone:
+[root@vinz:Active:In Sync] config # grep -v tmm /var/log/ltm | tail -1
+Apr 14 05:05:47 vinz notice mcpd[5630]: 010719e8:5: Virtual Address /Common/172.24.100.28 monitor status changed from UNCHECKED to UP.
+[root@vinz:Active:In Sync] config # grep 010719e8 /etc/alertd/*
+/etc/alertd/bigip_mcpd_error_maps.h:0 LOG_NOTICE        010719e8 BIGIP_MCPD_MCPDERR_VIRTUAL_ADDRESS_MON_STATUS_CHANGE "Virtual Address %s monitor status changed from %s to %s."
+from Paul Aurich to Everyone:
+What Dan is talking about ^ 
+to Mr MegaZone (privately):
+Hi, regarding the CVE, when the scripts silently failed, what did get populated on the new instance?
+from Paul Aurich to Everyone:
+http://go/562122
+
+
+
+This isn't ID530505 (good work though).
+
+
+*** INTERNAL ONLY ***
+
+#0  __pthread_kill (threadid=<optimized out>, signo=<optimized out>) at ../nptl/sysdeps/unix/sysv/linux/pthread_kill.c:69
+#1  0x0000000000ab9523 in sigsegv_handler (signum=8, info=0x1bf, ctx=0x5700003fd480) at ../kern/sys.c:3437
+#2  <signal handler called>
+#3  0x0000000000ae0d49 in tmm_panic (format=0x1e9b7c0 "../modules/hudfilter/tcp4/tcp4.c:4418: %sdata present%s") at ../lib/stdio.c:1254
+#4  0x0000000000ae0d6b in tmm_assert (message=0x0) at ../lib/stdio.c:1263
+#5  0x0000000000b5e1bd in tcp4_drop (tp=0x57000a74ed00, len=1) at ../modules/hudfilter/tcp4/tcp4.c:4418
+#6  0x0000000000b67d41 in tcp4_predack_fastpath (private=<optimized out>, tiwin=<optimized out>, tp=<optimized out>, to=<optimized out>, 
+    th=<optimized out>, pkt=<optimized out>) at ../modules/hudfilter/tcp4/tcp4.c:6657
+#7  hud_tcp4_ingress (node=0x57000a74ecc0, cf=<optimized out>, pkt=0x57000e62ed40) at ../modules/hudfilter/tcp4/tcp4.c:1873
+#8  0x0000000000b5ab9b in hudQ_drain () at ../modules/hudfilter/hudfilter.c:847
+#9  0x00000000004c71fd in device_poll (param=<optimized out>, cycle=2) at ../dev/device.c:384
+#10 0x0000000000b45a76 in tmm_loop () at ../kern/tmm.c:1260
+#11 0x0000000000551fb4 in tmm_start (order=<optimized out>, n=943) at ../kern/tmm.c:427
+#12 0x0000000000b458a9 in tmm () at ../kern/tmm.c:482
+#13 0x00002ad815266ce0 in ?? () from /wendy/tools/share/sysroots/by_source/sources/bigip/v11.6.0-hf6/src.442.0/x86_64/lib64/libc.so.6
+#14 0x00007fff5ed8db80 in ?? ()
+#15 0x0000000000000000 in ?? ()
+
+
+#5  0x0000000000b5e1bd in tcp4_drop (tp=0x57000a74ed00, len=1) at ../modules/hudfilter/tcp4/tcp4.c:4418
+4418    ../modules/hudfilter/tcp4/tcp4.c: No such file or directory.
+
+(gdb) p tp->cf->egress_mtu 
+$1 = 1500
+
+(gdb) p min_path_mtu
+$2 = 296
+
+(ruling out ID536481 & ID553916 too)
+
+(gdb) p tp->iss 
+$3 = 2531369089
+
+(gdb)  p tp->snd_una
+$4 = 2531369089
+
+(gdb) p tp->state
+$5 = TCPS_ESTABLISHED
+
+
+#7  hud_tcp4_ingress (node=0x57000a74ecc0, cf=<optimized out>, pkt=0x57000e62ed40) at ../modules/hudfilter/tcp4/tcp4.c:1873
+1873    in ../modules/hudfilter/tcp4/tcp4.c
+
+(gdb) p th->ack     
+$6 = 2531369090
+
+
+*** END INTERNAL ***
+
+
+This is ID572495. This is marked as a severe vulnerability but *** do not inform the customer yet *** 
+
+
+Does the customer want an EHF ? If yes, 11.6.1 is due this month. Do they prefer to have it on 11.6.1 and take advantage of several hundred bug and vulnerability fixes proactively? Or stick to 11.6.0 (which will not get any further bug fixes until it goes EoSD) ?
+
+
+==========================
+
+sniff_mcp -i <configsync vlan>:h "port 6699"
+
+==========================
+
+
+
+-==============ASM ============
+telnet tmm 11211
+ 
+binlookup asm_sessiondp
+ 
+get/t /81aefbeb.*/asm.session.dp:*
+===========================
+
+cdqkview <qkview number>
+cdsr <SR number>
+
+core_path mcpd.bld656.0.core.gz
+f5_load_core /var/tmp/core_cache/gdb_core_data_262a6ddc29c4d7f796d0a4c27f6da725 --original-core-name=mcpd.bld656.0.core.gz
+OR
+f5_load_core --original-core-name mcpd.bld6.0.159.core.gz $(core_path mcpd.bld656.0.core.gz)
+
+corestrings $(mcpd_gdb cache -n mcpd.bld656.0.core.gz)
+
+
+Hi Cris,
+Tried to talk to you today; left a voice message.
+When you raised this ticket, you wanted to know if SOL14552 is the cause of your issue.
+You are running v11.5.3 HF2 while SOL14552 relates to lower version. Based on the information, you are not affected by this.
+We need to find out what else is causing this.
+
+telnet 192.168.99.14 80
+GET / HTTP/1.1
+host: 192.168.99.14
+<hit enter twice>
+
+
+telnet 192.168.99.10 80
+GET / HTTP/1.1
+host: 192.168.99.10
+<hit enter twice>
+
+Plan of Action:
+Troubleshooting:
+1. Get a packet capture of health monitors during the failure period
+
+
+to Tom McCurdy (privately):
+Can you share the RQ?
+from Tom McCurdy to Everyone:
+In-TMM monitoring RQ: http://fpweb.olympus.f5net.com/fptopic.asp?REQ=RQ-LTM-0001905
+to Tom McCurdy (privately):
+Thanks
+from Paul Aurich to Everyone:
+"message ID" / "bigcodes" utility on the BIG-IP
+from Tom McCurdy to Everyone:
+bigcodes - expands log codes.
+Codes are of the form "[[:xdigit:]]{8}\:".
+    With no arguments, expands strings from stdin to stdout.
+    -h -? --help -- prints help.
+    Arguments are otherwise expanded and written to stdout.
+example: cat /var/log/ltm | bigcodes | less
+example: zcat /var/log/ltm.1.gz | bigcodes | less
+
+from Paul Aurich to Everyone:
+[root@vinz:Active:In Sync] config # grep -v tmm /var/log/ltm | tail -1
+Apr 14 05:05:47 vinz notice mcpd[5630]: 010719e8:5: Virtual Address /Common/172.24.100.28 monitor status changed from UNCHECKED to UP.
+[root@vinz:Active:In Sync] config # grep 010719e8 /etc/alertd/*
+/etc/alertd/bigip_mcpd_error_maps.h:0 LOG_NOTICE        010719e8 BIGIP_MCPD_MCPDERR_VIRTUAL_ADDRESS_MON_STATUS_CHANGE "Virtual Address %s monitor status changed from %s to %s."
+from Paul Aurich to Everyone:
+What Dan is talking about ^ 
+to Mr MegaZone (privately):
+Hi, regarding the CVE, when the scripts silently failed, what did get populated on the new instance?
+from Paul Aurich to Everyone:
+http://go/562122
+
+
+
+This isn't ID530505 (good work though).
+
+
+*** INTERNAL ONLY ***
+
+#0  __pthread_kill (threadid=<optimized out>, signo=<optimized out>) at ../nptl/sysdeps/unix/sysv/linux/pthread_kill.c:69
+#1  0x0000000000ab9523 in sigsegv_handler (signum=8, info=0x1bf, ctx=0x5700003fd480) at ../kern/sys.c:3437
+#2  <signal handler called>
+#3  0x0000000000ae0d49 in tmm_panic (format=0x1e9b7c0 "../modules/hudfilter/tcp4/tcp4.c:4418: %sdata present%s") at ../lib/stdio.c:1254
+#4  0x0000000000ae0d6b in tmm_assert (message=0x0) at ../lib/stdio.c:1263
+#5  0x0000000000b5e1bd in tcp4_drop (tp=0x57000a74ed00, len=1) at ../modules/hudfilter/tcp4/tcp4.c:4418
+#6  0x0000000000b67d41 in tcp4_predack_fastpath (private=<optimized out>, tiwin=<optimized out>, tp=<optimized out>, to=<optimized out>, 
+    th=<optimized out>, pkt=<optimized out>) at ../modules/hudfilter/tcp4/tcp4.c:6657
+#7  hud_tcp4_ingress (node=0x57000a74ecc0, cf=<optimized out>, pkt=0x57000e62ed40) at ../modules/hudfilter/tcp4/tcp4.c:1873
+#8  0x0000000000b5ab9b in hudQ_drain () at ../modules/hudfilter/hudfilter.c:847
+#9  0x00000000004c71fd in device_poll (param=<optimized out>, cycle=2) at ../dev/device.c:384
+#10 0x0000000000b45a76 in tmm_loop () at ../kern/tmm.c:1260
+#11 0x0000000000551fb4 in tmm_start (order=<optimized out>, n=943) at ../kern/tmm.c:427
+#12 0x0000000000b458a9 in tmm () at ../kern/tmm.c:482
+#13 0x00002ad815266ce0 in ?? () from /wendy/tools/share/sysroots/by_source/sources/bigip/v11.6.0-hf6/src.442.0/x86_64/lib64/libc.so.6
+#14 0x00007fff5ed8db80 in ?? ()
+#15 0x0000000000000000 in ?? ()
+
+
+#5  0x0000000000b5e1bd in tcp4_drop (tp=0x57000a74ed00, len=1) at ../modules/hudfilter/tcp4/tcp4.c:4418
+4418    ../modules/hudfilter/tcp4/tcp4.c: No such file or directory.
+
+(gdb) p tp->cf->egress_mtu 
+$1 = 1500
+
+(gdb) p min_path_mtu
+$2 = 296
+
+(ruling out ID536481 & ID553916 too)
+
+(gdb) p tp->iss 
+$3 = 2531369089
+
+(gdb)  p tp->snd_una
+$4 = 2531369089
+
+(gdb) p tp->state
+$5 = TCPS_ESTABLISHED
+
+
+#7  hud_tcp4_ingress (node=0x57000a74ecc0, cf=<optimized out>, pkt=0x57000e62ed40) at ../modules/hudfilter/tcp4/tcp4.c:1873
+1873    in ../modules/hudfilter/tcp4/tcp4.c
+
+(gdb) p th->ack     
+$6 = 2531369090
+
+
+*** END INTERNAL ***
+
+
+This is ID572495. This is marked as a severe vulnerability but *** do not inform the customer yet *** 
+
+
+Does the customer want an EHF ? If yes, 11.6.1 is due this month. Do they prefer to have it on 11.6.1 and take advantage of several hundred bug and vulnerability fixes proactively? Or stick to 11.6.0 (which will not get any further bug fixes until it goes EoSD) ?
+
+
+==========================
+
+sniff_mcp -i <configsync vlan>:h "port 6699"
+
+==========================
+
+
+
+-==============ASM ============
+telnet tmm 11211
+ 
+binlookup asm_sessiondp
+ 
+get/t /81aefbeb.*/asm.session.dp:*
+===========================
+
+cdqkview <qkview number>
+cdsr <SR number>
+
+core_path mcpd.bld656.0.core.gz
+f5_load_core /var/tmp/core_cache/gdb_core_data_262a6ddc29c4d7f796d0a4c27f6da725 --original-core-name=mcpd.bld656.0.core.gz
+OR
+f5_load_core --original-core-name mcpd.bld6.0.159.core.gz $(core_path mcpd.bld656.0.core.gz)
+
+corestrings $(mcpd_gdb cache -n mcpd.bld656.0.core.gz)
+
+
+Hi Cris,
+Tried to talk to you today; left a voice message.
+When you raised this ticket, you wanted to know if SOL14552 is the cause of your issue.
+You are running v11.5.3 HF2 while SOL14552 relates to lower version. Based on the information, you are not affected by this.
+We need to find out what else is causing this.
+
+telnet 192.168.99.14 80
+GET / HTTP/1.1
+host: 192.168.99.14
+<hit enter twice>
+
+
+telnet 192.168.99.10 80
+GET / HTTP/1.1
+host: 192.168.99.10
+<hit enter twice>
+
+Plan of Action:
+Troubleshooting:
+1. Get a packet capture of health monitors during the failure period
+
+
+to Tom McCurdy (privately):
+Can you share the RQ?
+from Tom McCurdy to Everyone:
+In-TMM monitoring RQ: http://fpweb.olympus.f5net.com/fptopic.asp?REQ=RQ-LTM-0001905
+to Tom McCurdy (privately):
+Thanks
+from Paul Aurich to Everyone:
+"message ID" / "bigcodes" utility on the BIG-IP
+from Tom McCurdy to Everyone:
+bigcodes - expands log codes.
+Codes are of the form "[[:xdigit:]]{8}\:".
+    With no arguments, expands strings from stdin to stdout.
+    -h -? --help -- prints help.
+    Arguments are otherwise expanded and written to stdout.
+example: cat /var/log/ltm | bigcodes | less
+example: zcat /var/log/ltm.1.gz | bigcodes | less
+
+from Paul Aurich to Everyone:
+[root@vinz:Active:In Sync] config # grep -v tmm /var/log/ltm | tail -1
+Apr 14 05:05:47 vinz notice mcpd[5630]: 010719e8:5: Virtual Address /Common/172.24.100.28 monitor status changed from UNCHECKED to UP.
+[root@vinz:Active:In Sync] config # grep 010719e8 /etc/alertd/*
+/etc/alertd/bigip_mcpd_error_maps.h:0 LOG_NOTICE        010719e8 BIGIP_MCPD_MCPDERR_VIRTUAL_ADDRESS_MON_STATUS_CHANGE "Virtual Address %s monitor status changed from %s to %s."
+from Paul Aurich to Everyone:
+What Dan is talking about ^ 
+to Mr MegaZone (privately):
+Hi, regarding the CVE, when the scripts silently failed, what did get populated on the new instance?
+from Paul Aurich to Everyone:
+http://go/562122
+
+
+
+This isn't ID530505 (good work though).
+
+
+*** INTERNAL ONLY ***
+
+#0  __pthread_kill (threadid=<optimized out>, signo=<optimized out>) at ../nptl/sysdeps/unix/sysv/linux/pthread_kill.c:69
+#1  0x0000000000ab9523 in sigsegv_handler (signum=8, info=0x1bf, ctx=0x5700003fd480) at ../kern/sys.c:3437
+#2  <signal handler called>
+#3  0x0000000000ae0d49 in tmm_panic (format=0x1e9b7c0 "../modules/hudfilter/tcp4/tcp4.c:4418: %sdata present%s") at ../lib/stdio.c:1254
+#4  0x0000000000ae0d6b in tmm_assert (message=0x0) at ../lib/stdio.c:1263
+#5  0x0000000000b5e1bd in tcp4_drop (tp=0x57000a74ed00, len=1) at ../modules/hudfilter/tcp4/tcp4.c:4418
+#6  0x0000000000b67d41 in tcp4_predack_fastpath (private=<optimized out>, tiwin=<optimized out>, tp=<optimized out>, to=<optimized out>, 
+    th=<optimized out>, pkt=<optimized out>) at ../modules/hudfilter/tcp4/tcp4.c:6657
+#7  hud_tcp4_ingress (node=0x57000a74ecc0, cf=<optimized out>, pkt=0x57000e62ed40) at ../modules/hudfilter/tcp4/tcp4.c:1873
+#8  0x0000000000b5ab9b in hudQ_drain () at ../modules/hudfilter/hudfilter.c:847
+#9  0x00000000004c71fd in device_poll (param=<optimized out>, cycle=2) at ../dev/device.c:384
+#10 0x0000000000b45a76 in tmm_loop () at ../kern/tmm.c:1260
+#11 0x0000000000551fb4 in tmm_start (order=<optimized out>, n=943) at ../kern/tmm.c:427
+#12 0x0000000000b458a9 in tmm () at ../kern/tmm.c:482
+#13 0x00002ad815266ce0 in ?? () from /wendy/tools/share/sysroots/by_source/sources/bigip/v11.6.0-hf6/src.442.0/x86_64/lib64/libc.so.6
+#14 0x00007fff5ed8db80 in ?? ()
+#15 0x0000000000000000 in ?? ()
+
+
+#5  0x0000000000b5e1bd in tcp4_drop (tp=0x57000a74ed00, len=1) at ../modules/hudfilter/tcp4/tcp4.c:4418
+4418    ../modules/hudfilter/tcp4/tcp4.c: No such file or directory.
+
+(gdb) p tp->cf->egress_mtu 
+$1 = 1500
+
+(gdb) p min_path_mtu
+$2 = 296
+
+(ruling out ID536481 & ID553916 too)
+
+(gdb) p tp->iss 
+$3 = 2531369089
+
+(gdb)  p tp->snd_una
+$4 = 2531369089
+
+(gdb) p tp->state
+$5 = TCPS_ESTABLISHED
+
+
+#7  hud_tcp4_ingress (node=0x57000a74ecc0, cf=<optimized out>, pkt=0x57000e62ed40) at ../modules/hudfilter/tcp4/tcp4.c:1873
+1873    in ../modules/hudfilter/tcp4/tcp4.c
+
+(gdb) p th->ack     
+$6 = 2531369090
+
+
+*** END INTERNAL ***
+
+
+This is ID572495. This is marked as a severe vulnerability but *** do not inform the customer yet *** 
+
+
+Does the customer want an EHF ? If yes, 11.6.1 is due this month. Do they prefer to have it on 11.6.1 and take advantage of several hundred bug and vulnerability fixes proactively? Or stick to 11.6.0 (which will not get any further bug fixes until it goes EoSD) ?
+
+
+==========================
+
+sniff_mcp -i <configsync vlan>:h "port 6699"
+
+==========================
+
+
+
+-==============ASM ============
+telnet tmm 11211
+ 
+binlookup asm_sessiondp
+ 
+get/t /81aefbeb.*/asm.session.dp:*
+===========================
+
+
+cdqkview <qkview number>
+cdsr <SR number>
+
+core_path mcpd.bld656.0.core.gz
+f5_load_core /var/tmp/core_cache/gdb_core_data_262a6ddc29c4d7f796d0a4c27f6da725 --original-core-name=mcpd.bld656.0.core.gz
+OR
+f5_load_core --original-core-name mcpd.bld6.0.159.core.gz $(core_path mcpd.bld656.0.core.gz)
+
+corestrings $(mcpd_gdb cache -n mcpd.bld656.0.core.gz)
+
+
+Hi Cris,
+Tried to talk to you today; left a voice message.
+When you raised this ticket, you wanted to know if SOL14552 is the cause of your issue.
+You are running v11.5.3 HF2 while SOL14552 relates to lower version. Based on the information, you are not affected by this.
+We need to find out what else is causing this.
+
+telnet 192.168.99.14 80
+GET / HTTP/1.1
+host: 192.168.99.14
+<hit enter twice>
+
+
+telnet 192.168.99.10 80
+GET / HTTP/1.1
+host: 192.168.99.10
+<hit enter twice>
+
+Plan of Action:
+Troubleshooting:
+1. Get a packet capture of health monitors during the failure period
+
+
+to Tom McCurdy (privately):
+Can you share the RQ?
+from Tom McCurdy to Everyone:
+In-TMM monitoring RQ: http://fpweb.olympus.f5net.com/fptopic.asp?REQ=RQ-LTM-0001905
+to Tom McCurdy (privately):
+Thanks
+from Paul Aurich to Everyone:
+"message ID" / "bigcodes" utility on the BIG-IP
+from Tom McCurdy to Everyone:
+bigcodes - expands log codes.
+Codes are of the form "[[:xdigit:]]{8}\:".
+    With no arguments, expands strings from stdin to stdout.
+    -h -? --help -- prints help.
+    Arguments are otherwise expanded and written to stdout.
+example: cat /var/log/ltm | bigcodes | less
+example: zcat /var/log/ltm.1.gz | bigcodes | less
+
+from Paul Aurich to Everyone:
+[root@vinz:Active:In Sync] config # grep -v tmm /var/log/ltm | tail -1
+Apr 14 05:05:47 vinz notice mcpd[5630]: 010719e8:5: Virtual Address /Common/172.24.100.28 monitor status changed from UNCHECKED to UP.
+[root@vinz:Active:In Sync] config # grep 010719e8 /etc/alertd/*
+/etc/alertd/bigip_mcpd_error_maps.h:0 LOG_NOTICE        010719e8 BIGIP_MCPD_MCPDERR_VIRTUAL_ADDRESS_MON_STATUS_CHANGE "Virtual Address %s monitor status changed from %s to %s."
+from Paul Aurich to Everyone:
+What Dan is talking about ^ 
+to Mr MegaZone (privately):
+Hi, regarding the CVE, when the scripts silently failed, what did get populated on the new instance?
+from Paul Aurich to Everyone:
+http://go/562122
+
+
+
+This isn't ID530505 (good work though).
+
+
+*** INTERNAL ONLY ***
+
+#0  __pthread_kill (threadid=<optimized out>, signo=<optimized out>) at ../nptl/sysdeps/unix/sysv/linux/pthread_kill.c:69
+#1  0x0000000000ab9523 in sigsegv_handler (signum=8, info=0x1bf, ctx=0x5700003fd480) at ../kern/sys.c:3437
+#2  <signal handler called>
+#3  0x0000000000ae0d49 in tmm_panic (format=0x1e9b7c0 "../modules/hudfilter/tcp4/tcp4.c:4418: %sdata present%s") at ../lib/stdio.c:1254
+#4  0x0000000000ae0d6b in tmm_assert (message=0x0) at ../lib/stdio.c:1263
+#5  0x0000000000b5e1bd in tcp4_drop (tp=0x57000a74ed00, len=1) at ../modules/hudfilter/tcp4/tcp4.c:4418
+#6  0x0000000000b67d41 in tcp4_predack_fastpath (private=<optimized out>, tiwin=<optimized out>, tp=<optimized out>, to=<optimized out>, 
+    th=<optimized out>, pkt=<optimized out>) at ../modules/hudfilter/tcp4/tcp4.c:6657
+#7  hud_tcp4_ingress (node=0x57000a74ecc0, cf=<optimized out>, pkt=0x57000e62ed40) at ../modules/hudfilter/tcp4/tcp4.c:1873
+#8  0x0000000000b5ab9b in hudQ_drain () at ../modules/hudfilter/hudfilter.c:847
+#9  0x00000000004c71fd in device_poll (param=<optimized out>, cycle=2) at ../dev/device.c:384
+#10 0x0000000000b45a76 in tmm_loop () at ../kern/tmm.c:1260
+#11 0x0000000000551fb4 in tmm_start (order=<optimized out>, n=943) at ../kern/tmm.c:427
+#12 0x0000000000b458a9 in tmm () at ../kern/tmm.c:482
+#13 0x00002ad815266ce0 in ?? () from /wendy/tools/share/sysroots/by_source/sources/bigip/v11.6.0-hf6/src.442.0/x86_64/lib64/libc.so.6
+#14 0x00007fff5ed8db80 in ?? ()
+#15 0x0000000000000000 in ?? ()
+
+
+#5  0x0000000000b5e1bd in tcp4_drop (tp=0x57000a74ed00, len=1) at ../modules/hudfilter/tcp4/tcp4.c:4418
+4418    ../modules/hudfilter/tcp4/tcp4.c: No such file or directory.
+
+(gdb) p tp->cf->egress_mtu 
+$1 = 1500
+
+(gdb) p min_path_mtu
+$2 = 296
+
+(ruling out ID536481 & ID553916 too)
+
+(gdb) p tp->iss 
+$3 = 2531369089
+
+(gdb)  p tp->snd_una
+$4 = 2531369089
+
+(gdb) p tp->state
+$5 = TCPS_ESTABLISHED
+
+
+#7  hud_tcp4_ingress (node=0x57000a74ecc0, cf=<optimized out>, pkt=0x57000e62ed40) at ../modules/hudfilter/tcp4/tcp4.c:1873
+1873    in ../modules/hudfilter/tcp4/tcp4.c
+
+(gdb) p th->ack     
+$6 = 2531369090
+
+
+*** END INTERNAL ***
+
+
+This is ID572495. This is marked as a severe vulnerability but *** do not inform the customer yet *** 
+
+
+Does the customer want an EHF ? If yes, 11.6.1 is due this month. Do they prefer to have it on 11.6.1 and take advantage of several hundred bug and vulnerability fixes proactively? Or stick to 11.6.0 (which will not get any further bug fixes until it goes EoSD) ?
+
+
+==========================
+
+sniff_mcp -i <configsync vlan>:h "port 6699"
+
+==========================
+
+
+
+-==============ASM ============
+telnet tmm 11211
+ 
+binlookup asm_sessiondp
+ 
+get/t /81aefbeb.*/asm.session.dp:*
+===========================
+
+cdqkview <qkview number>
+cdsr <SR number>
+
+core_path mcpd.bld656.0.core.gz
+f5_load_core /var/tmp/core_cache/gdb_core_data_262a6ddc29c4d7f796d0a4c27f6da725 --original-core-name=mcpd.bld656.0.core.gz
+OR
+f5_load_core --original-core-name mcpd.bld6.0.159.core.gz $(core_path mcpd.bld656.0.core.gz)
+
+corestrings $(mcpd_gdb cache -n mcpd.bld656.0.core.gz)
+
+
+Hi Cris,
+Tried to talk to you today; left a voice message.
+When you raised this ticket, you wanted to know if SOL14552 is the cause of your issue.
+You are running v11.5.3 HF2 while SOL14552 relates to lower version. Based on the information, you are not affected by this.
+We need to find out what else is causing this.
+
+telnet 192.168.99.14 80
+GET / HTTP/1.1
+host: 192.168.99.14
+<hit enter twice>
+
+
+telnet 192.168.99.10 80
+GET / HTTP/1.1
+host: 192.168.99.10
+<hit enter twice>
+
+Plan of Action:
+Troubleshooting:
+1. Get a packet capture of health monitors during the failure period
+
+
+to Tom McCurdy (privately):
+Can you share the RQ?
+from Tom McCurdy to Everyone:
+In-TMM monitoring RQ: http://fpweb.olympus.f5net.com/fptopic.asp?REQ=RQ-LTM-0001905
+to Tom McCurdy (privately):
+Thanks
+from Paul Aurich to Everyone:
+"message ID" / "bigcodes" utility on the BIG-IP
+from Tom McCurdy to Everyone:
+bigcodes - expands log codes.
+Codes are of the form "[[:xdigit:]]{8}\:".
+    With no arguments, expands strings from stdin to stdout.
+    -h -? --help -- prints help.
+    Arguments are otherwise expanded and written to stdout.
+example: cat /var/log/ltm | bigcodes | less
+example: zcat /var/log/ltm.1.gz | bigcodes | less
+
+from Paul Aurich to Everyone:
+[root@vinz:Active:In Sync] config # grep -v tmm /var/log/ltm | tail -1
+Apr 14 05:05:47 vinz notice mcpd[5630]: 010719e8:5: Virtual Address /Common/172.24.100.28 monitor status changed from UNCHECKED to UP.
+[root@vinz:Active:In Sync] config # grep 010719e8 /etc/alertd/*
+/etc/alertd/bigip_mcpd_error_maps.h:0 LOG_NOTICE        010719e8 BIGIP_MCPD_MCPDERR_VIRTUAL_ADDRESS_MON_STATUS_CHANGE "Virtual Address %s monitor status changed from %s to %s."
+from Paul Aurich to Everyone:
+What Dan is talking about ^ 
+to Mr MegaZone (privately):
+Hi, regarding the CVE, when the scripts silently failed, what did get populated on the new instance?
+from Paul Aurich to Everyone:
+http://go/562122
+
+
+
+This isn't ID530505 (good work though).
+
+
+*** INTERNAL ONLY ***
+
+#0  __pthread_kill (threadid=<optimized out>, signo=<optimized out>) at ../nptl/sysdeps/unix/sysv/linux/pthread_kill.c:69
+#1  0x0000000000ab9523 in sigsegv_handler (signum=8, info=0x1bf, ctx=0x5700003fd480) at ../kern/sys.c:3437
+#2  <signal handler called>
+#3  0x0000000000ae0d49 in tmm_panic (format=0x1e9b7c0 "../modules/hudfilter/tcp4/tcp4.c:4418: %sdata present%s") at ../lib/stdio.c:1254
+#4  0x0000000000ae0d6b in tmm_assert (message=0x0) at ../lib/stdio.c:1263
+#5  0x0000000000b5e1bd in tcp4_drop (tp=0x57000a74ed00, len=1) at ../modules/hudfilter/tcp4/tcp4.c:4418
+#6  0x0000000000b67d41 in tcp4_predack_fastpath (private=<optimized out>, tiwin=<optimized out>, tp=<optimized out>, to=<optimized out>, 
+    th=<optimized out>, pkt=<optimized out>) at ../modules/hudfilter/tcp4/tcp4.c:6657
+#7  hud_tcp4_ingress (node=0x57000a74ecc0, cf=<optimized out>, pkt=0x57000e62ed40) at ../modules/hudfilter/tcp4/tcp4.c:1873
+#8  0x0000000000b5ab9b in hudQ_drain () at ../modules/hudfilter/hudfilter.c:847
+#9  0x00000000004c71fd in device_poll (param=<optimized out>, cycle=2) at ../dev/device.c:384
+#10 0x0000000000b45a76 in tmm_loop () at ../kern/tmm.c:1260
+#11 0x0000000000551fb4 in tmm_start (order=<optimized out>, n=943) at ../kern/tmm.c:427
+#12 0x0000000000b458a9 in tmm () at ../kern/tmm.c:482
+#13 0x00002ad815266ce0 in ?? () from /wendy/tools/share/sysroots/by_source/sources/bigip/v11.6.0-hf6/src.442.0/x86_64/lib64/libc.so.6
+#14 0x00007fff5ed8db80 in ?? ()
+#15 0x0000000000000000 in ?? ()
+
+
+#5  0x0000000000b5e1bd in tcp4_drop (tp=0x57000a74ed00, len=1) at ../modules/hudfilter/tcp4/tcp4.c:4418
+4418    ../modules/hudfilter/tcp4/tcp4.c: No such file or directory.
+
+(gdb) p tp->cf->egress_mtu 
+$1 = 1500
+
+(gdb) p min_path_mtu
+$2 = 296
+
+(ruling out ID536481 & ID553916 too)
+
+(gdb) p tp->iss 
+$3 = 2531369089
+
+(gdb)  p tp->snd_una
+$4 = 2531369089
+
+(gdb) p tp->state
+$5 = TCPS_ESTABLISHED
+
+
+#7  hud_tcp4_ingress (node=0x57000a74ecc0, cf=<optimized out>, pkt=0x57000e62ed40) at ../modules/hudfilter/tcp4/tcp4.c:1873
+1873    in ../modules/hudfilter/tcp4/tcp4.c
+
+(gdb) p th->ack     
+$6 = 2531369090
+
+
+*** END INTERNAL ***
+
+
+This is ID572495. This is marked as a severe vulnerability but *** do not inform the customer yet *** 
+
+
+Does the customer want an EHF ? If yes, 11.6.1 is due this month. Do they prefer to have it on 11.6.1 and take advantage of several hundred bug and vulnerability fixes proactively? Or stick to 11.6.0 (which will not get any further bug fixes until it goes EoSD) ?
+
+
+==========================
+
+sniff_mcp -i <configsync vlan>:h "port 6699"
+
+==========================
+
+
+
+-==============ASM ============
+telnet tmm 11211
+ 
+binlookup asm_sessiondp
+ 
+get/t /81aefbeb.*/asm.session.dp:*
+===========================
+
+cdqkview <qkview number>
+cdsr <SR number>
+
+core_path mcpd.bld656.0.core.gz
+f5_load_core /var/tmp/core_cache/gdb_core_data_262a6ddc29c4d7f796d0a4c27f6da725 --original-core-name=mcpd.bld656.0.core.gz
+OR
+f5_load_core --original-core-name mcpd.bld6.0.159.core.gz $(core_path mcpd.bld656.0.core.gz)
+
+corestrings $(mcpd_gdb cache -n mcpd.bld656.0.core.gz)
+
+
+Hi Cris,
+Tried to talk to you today; left a voice message.
+When you raised this ticket, you wanted to know if SOL14552 is the cause of your issue.
+You are running v11.5.3 HF2 while SOL14552 relates to lower version. Based on the information, you are not affected by this.
+We need to find out what else is causing this.
+
+telnet 192.168.99.14 80
+GET / HTTP/1.1
+host: 192.168.99.14
+<hit enter twice>
+
+
+telnet 192.168.99.10 80
+GET / HTTP/1.1
+host: 192.168.99.10
+<hit enter twice>
+
+Plan of Action:
+Troubleshooting:
+1. Get a packet capture of health monitors during the failure period
+
+
+to Tom McCurdy (privately):
+Can you share the RQ?
+from Tom McCurdy to Everyone:
+In-TMM monitoring RQ: http://fpweb.olympus.f5net.com/fptopic.asp?REQ=RQ-LTM-0001905
+to Tom McCurdy (privately):
+Thanks
+from Paul Aurich to Everyone:
+"message ID" / "bigcodes" utility on the BIG-IP
+from Tom McCurdy to Everyone:
+bigcodes - expands log codes.
+Codes are of the form "[[:xdigit:]]{8}\:".
+    With no arguments, expands strings from stdin to stdout.
+    -h -? --help -- prints help.
+    Arguments are otherwise expanded and written to stdout.
+example: cat /var/log/ltm | bigcodes | less
+example: zcat /var/log/ltm.1.gz | bigcodes | less
+
+from Paul Aurich to Everyone:
+[root@vinz:Active:In Sync] config # grep -v tmm /var/log/ltm | tail -1
+Apr 14 05:05:47 vinz notice mcpd[5630]: 010719e8:5: Virtual Address /Common/172.24.100.28 monitor status changed from UNCHECKED to UP.
+[root@vinz:Active:In Sync] config # grep 010719e8 /etc/alertd/*
+/etc/alertd/bigip_mcpd_error_maps.h:0 LOG_NOTICE        010719e8 BIGIP_MCPD_MCPDERR_VIRTUAL_ADDRESS_MON_STATUS_CHANGE "Virtual Address %s monitor status changed from %s to %s."
+from Paul Aurich to Everyone:
+What Dan is talking about ^ 
+to Mr MegaZone (privately):
+Hi, regarding the CVE, when the scripts silently failed, what did get populated on the new instance?
+from Paul Aurich to Everyone:
+http://go/562122
+
+
+
+This isn't ID530505 (good work though).
+
+
+*** INTERNAL ONLY ***
+
+#0  __pthread_kill (threadid=<optimized out>, signo=<optimized out>) at ../nptl/sysdeps/unix/sysv/linux/pthread_kill.c:69
+#1  0x0000000000ab9523 in sigsegv_handler (signum=8, info=0x1bf, ctx=0x5700003fd480) at ../kern/sys.c:3437
+#2  <signal handler called>
+#3  0x0000000000ae0d49 in tmm_panic (format=0x1e9b7c0 "../modules/hudfilter/tcp4/tcp4.c:4418: %sdata present%s") at ../lib/stdio.c:1254
+#4  0x0000000000ae0d6b in tmm_assert (message=0x0) at ../lib/stdio.c:1263
+#5  0x0000000000b5e1bd in tcp4_drop (tp=0x57000a74ed00, len=1) at ../modules/hudfilter/tcp4/tcp4.c:4418
+#6  0x0000000000b67d41 in tcp4_predack_fastpath (private=<optimized out>, tiwin=<optimized out>, tp=<optimized out>, to=<optimized out>, 
+    th=<optimized out>, pkt=<optimized out>) at ../modules/hudfilter/tcp4/tcp4.c:6657
+#7  hud_tcp4_ingress (node=0x57000a74ecc0, cf=<optimized out>, pkt=0x57000e62ed40) at ../modules/hudfilter/tcp4/tcp4.c:1873
+#8  0x0000000000b5ab9b in hudQ_drain () at ../modules/hudfilter/hudfilter.c:847
+#9  0x00000000004c71fd in device_poll (param=<optimized out>, cycle=2) at ../dev/device.c:384
+#10 0x0000000000b45a76 in tmm_loop () at ../kern/tmm.c:1260
+#11 0x0000000000551fb4 in tmm_start (order=<optimized out>, n=943) at ../kern/tmm.c:427
+#12 0x0000000000b458a9 in tmm () at ../kern/tmm.c:482
+#13 0x00002ad815266ce0 in ?? () from /wendy/tools/share/sysroots/by_source/sources/bigip/v11.6.0-hf6/src.442.0/x86_64/lib64/libc.so.6
+#14 0x00007fff5ed8db80 in ?? ()
+#15 0x0000000000000000 in ?? ()
+
+
+#5  0x0000000000b5e1bd in tcp4_drop (tp=0x57000a74ed00, len=1) at ../modules/hudfilter/tcp4/tcp4.c:4418
+4418    ../modules/hudfilter/tcp4/tcp4.c: No such file or directory.
+
+(gdb) p tp->cf->egress_mtu 
+$1 = 1500
+
+(gdb) p min_path_mtu
+$2 = 296
+
+(ruling out ID536481 & ID553916 too)
+
+(gdb) p tp->iss 
+$3 = 2531369089
+
+(gdb)  p tp->snd_una
+$4 = 2531369089
+
+(gdb) p tp->state
+$5 = TCPS_ESTABLISHED
+
+
+#7  hud_tcp4_ingress (node=0x57000a74ecc0, cf=<optimized out>, pkt=0x57000e62ed40) at ../modules/hudfilter/tcp4/tcp4.c:1873
+1873    in ../modules/hudfilter/tcp4/tcp4.c
+
+(gdb) p th->ack     
+$6 = 2531369090
+
+
+*** END INTERNAL ***
+
+
+This is ID572495. This is marked as a severe vulnerability but *** do not inform the customer yet *** 
+
+
+Does the customer want an EHF ? If yes, 11.6.1 is due this month. Do they prefer to have it on 11.6.1 and take advantage of several hundred bug and vulnerability fixes proactively? Or stick to 11.6.0 (which will not get any further bug fixes until it goes EoSD) ?
+
+
+==========================
+
+sniff_mcp -i <configsync vlan>:h "port 6699"
+
+==========================
+
+
+
+-==============ASM ============
+telnet tmm 11211
+ 
+binlookup asm_sessiondp
+ 
+get/t /81aefbeb.*/asm.session.dp:*
+===========================
+
+cdqkview <qkview number>
+cdsr <SR number>
+
+core_path mcpd.bld656.0.core.gz
+f5_load_core /var/tmp/core_cache/gdb_core_data_262a6ddc29c4d7f796d0a4c27f6da725 --original-core-name=mcpd.bld656.0.core.gz
+OR
+f5_load_core --original-core-name mcpd.bld6.0.159.core.gz $(core_path mcpd.bld656.0.core.gz)
+
+corestrings $(mcpd_gdb cache -n mcpd.bld656.0.core.gz)
+
+
+Hi Cris,
+Tried to talk to you today; left a voice message.
+When you raised this ticket, you wanted to know if SOL14552 is the cause of your issue.
+You are running v11.5.3 HF2 while SOL14552 relates to lower version. Based on the information, you are not affected by this.
+We need to find out what else is causing this.
+
+telnet 192.168.99.14 80
+GET / HTTP/1.1
+host: 192.168.99.14
+<hit enter twice>
+
+
+telnet 192.168.99.10 80
+GET / HTTP/1.1
+host: 192.168.99.10
+<hit enter twice>
+
+Plan of Action:
+Troubleshooting:
+1. Get a packet capture of health monitors during the failure period
+
+
+to Tom McCurdy (privately):
+Can you share the RQ?
+from Tom McCurdy to Everyone:
+In-TMM monitoring RQ: http://fpweb.olympus.f5net.com/fptopic.asp?REQ=RQ-LTM-0001905
+to Tom McCurdy (privately):
+Thanks
+from Paul Aurich to Everyone:
+"message ID" / "bigcodes" utility on the BIG-IP
+from Tom McCurdy to Everyone:
+bigcodes - expands log codes.
+Codes are of the form "[[:xdigit:]]{8}\:".
+    With no arguments, expands strings from stdin to stdout.
+    -h -? --help -- prints help.
+    Arguments are otherwise expanded and written to stdout.
+example: cat /var/log/ltm | bigcodes | less
+example: zcat /var/log/ltm.1.gz | bigcodes | less
+
+from Paul Aurich to Everyone:
+[root@vinz:Active:In Sync] config # grep -v tmm /var/log/ltm | tail -1
+Apr 14 05:05:47 vinz notice mcpd[5630]: 010719e8:5: Virtual Address /Common/172.24.100.28 monitor status changed from UNCHECKED to UP.
+[root@vinz:Active:In Sync] config # grep 010719e8 /etc/alertd/*
+/etc/alertd/bigip_mcpd_error_maps.h:0 LOG_NOTICE        010719e8 BIGIP_MCPD_MCPDERR_VIRTUAL_ADDRESS_MON_STATUS_CHANGE "Virtual Address %s monitor status changed from %s to %s."
+from Paul Aurich to Everyone:
+What Dan is talking about ^ 
+to Mr MegaZone (privately):
+Hi, regarding the CVE, when the scripts silently failed, what did get populated on the new instance?
+from Paul Aurich to Everyone:
+http://go/562122
+
+
+
+This isn't ID530505 (good work though).
+
+
+*** INTERNAL ONLY ***
+
+#0  __pthread_kill (threadid=<optimized out>, signo=<optimized out>) at ../nptl/sysdeps/unix/sysv/linux/pthread_kill.c:69
+#1  0x0000000000ab9523 in sigsegv_handler (signum=8, info=0x1bf, ctx=0x5700003fd480) at ../kern/sys.c:3437
+#2  <signal handler called>
+#3  0x0000000000ae0d49 in tmm_panic (format=0x1e9b7c0 "../modules/hudfilter/tcp4/tcp4.c:4418: %sdata present%s") at ../lib/stdio.c:1254
+#4  0x0000000000ae0d6b in tmm_assert (message=0x0) at ../lib/stdio.c:1263
+#5  0x0000000000b5e1bd in tcp4_drop (tp=0x57000a74ed00, len=1) at ../modules/hudfilter/tcp4/tcp4.c:4418
+#6  0x0000000000b67d41 in tcp4_predack_fastpath (private=<optimized out>, tiwin=<optimized out>, tp=<optimized out>, to=<optimized out>, 
+    th=<optimized out>, pkt=<optimized out>) at ../modules/hudfilter/tcp4/tcp4.c:6657
+#7  hud_tcp4_ingress (node=0x57000a74ecc0, cf=<optimized out>, pkt=0x57000e62ed40) at ../modules/hudfilter/tcp4/tcp4.c:1873
+#8  0x0000000000b5ab9b in hudQ_drain () at ../modules/hudfilter/hudfilter.c:847
+#9  0x00000000004c71fd in device_poll (param=<optimized out>, cycle=2) at ../dev/device.c:384
+#10 0x0000000000b45a76 in tmm_loop () at ../kern/tmm.c:1260
+#11 0x0000000000551fb4 in tmm_start (order=<optimized out>, n=943) at ../kern/tmm.c:427
+#12 0x0000000000b458a9 in tmm () at ../kern/tmm.c:482
+#13 0x00002ad815266ce0 in ?? () from /wendy/tools/share/sysroots/by_source/sources/bigip/v11.6.0-hf6/src.442.0/x86_64/lib64/libc.so.6
+#14 0x00007fff5ed8db80 in ?? ()
+#15 0x0000000000000000 in ?? ()
+
+
+#5  0x0000000000b5e1bd in tcp4_drop (tp=0x57000a74ed00, len=1) at ../modules/hudfilter/tcp4/tcp4.c:4418
+4418    ../modules/hudfilter/tcp4/tcp4.c: No such file or directory.
+
+(gdb) p tp->cf->egress_mtu 
+$1 = 1500
+
+(gdb) p min_path_mtu
+$2 = 296
+
+(ruling out ID536481 & ID553916 too)
+
+(gdb) p tp->iss 
+$3 = 2531369089
+
+(gdb)  p tp->snd_una
+$4 = 2531369089
+
+(gdb) p tp->state
+$5 = TCPS_ESTABLISHED
+
+
+#7  hud_tcp4_ingress (node=0x57000a74ecc0, cf=<optimized out>, pkt=0x57000e62ed40) at ../modules/hudfilter/tcp4/tcp4.c:1873
+1873    in ../modules/hudfilter/tcp4/tcp4.c
+
+(gdb) p th->ack     
+$6 = 2531369090
+
+
+*** END INTERNAL ***
+
+
+This is ID572495. This is marked as a severe vulnerability but *** do not inform the customer yet *** 
+
+
+Does the customer want an EHF ? If yes, 11.6.1 is due this month. Do they prefer to have it on 11.6.1 and take advantage of several hundred bug and vulnerability fixes proactively? Or stick to 11.6.0 (which will not get any further bug fixes until it goes EoSD) ?
+
+
+==========================
+
+sniff_mcp -i <configsync vlan>:h "port 6699"
+
+==========================
+
+
+
+-==============ASM ============
+telnet tmm 11211
+ 
+binlookup asm_sessiondp
+ 
+get/t /81aefbeb.*/asm.session.dp:*
+===========================
+
+cdqkview <qkview number>
+cdsr <SR number>
+
+core_path mcpd.bld656.0.core.gz
+f5_load_core /var/tmp/core_cache/gdb_core_data_262a6ddc29c4d7f796d0a4c27f6da725 --original-core-name=mcpd.bld656.0.core.gz
+OR
+f5_load_core --original-core-name mcpd.bld6.0.159.core.gz $(core_path mcpd.bld656.0.core.gz)
+
+corestrings $(mcpd_gdb cache -n mcpd.bld656.0.core.gz)
+
+
+Hi Cris,
+Tried to talk to you today; left a voice message.
+When you raised this ticket, you wanted to know if SOL14552 is the cause of your issue.
+You are running v11.5.3 HF2 while SOL14552 relates to lower version. Based on the information, you are not affected by this.
+We need to find out what else is causing this.
+
+telnet 192.168.99.14 80
+GET / HTTP/1.1
+host: 192.168.99.14
+<hit enter twice>
+
+
+telnet 192.168.99.10 80
+GET / HTTP/1.1
+host: 192.168.99.10
+<hit enter twice>
+
+Plan of Action:
+Troubleshooting:
+1. Get a packet capture of health monitors during the failure period
+
+
+to Tom McCurdy (privately):
+Can you share the RQ?
+from Tom McCurdy to Everyone:
+In-TMM monitoring RQ: http://fpweb.olympus.f5net.com/fptopic.asp?REQ=RQ-LTM-0001905
+to Tom McCurdy (privately):
+Thanks
+from Paul Aurich to Everyone:
+"message ID" / "bigcodes" utility on the BIG-IP
+from Tom McCurdy to Everyone:
+bigcodes - expands log codes.
+Codes are of the form "[[:xdigit:]]{8}\:".
+    With no arguments, expands strings from stdin to stdout.
+    -h -? --help -- prints help.
+    Arguments are otherwise expanded and written to stdout.
+example: cat /var/log/ltm | bigcodes | less
+example: zcat /var/log/ltm.1.gz | bigcodes | less
+
+from Paul Aurich to Everyone:
+[root@vinz:Active:In Sync] config # grep -v tmm /var/log/ltm | tail -1
+Apr 14 05:05:47 vinz notice mcpd[5630]: 010719e8:5: Virtual Address /Common/172.24.100.28 monitor status changed from UNCHECKED to UP.
+[root@vinz:Active:In Sync] config # grep 010719e8 /etc/alertd/*
+/etc/alertd/bigip_mcpd_error_maps.h:0 LOG_NOTICE        010719e8 BIGIP_MCPD_MCPDERR_VIRTUAL_ADDRESS_MON_STATUS_CHANGE "Virtual Address %s monitor status changed from %s to %s."
+from Paul Aurich to Everyone:
+What Dan is talking about ^ 
+to Mr MegaZone (privately):
+Hi, regarding the CVE, when the scripts silently failed, what did get populated on the new instance?
+from Paul Aurich to Everyone:
+http://go/562122
+
+
+
+This isn't ID530505 (good work though).
+
+
+*** INTERNAL ONLY ***
+
+#0  __pthread_kill (threadid=<optimized out>, signo=<optimized out>) at ../nptl/sysdeps/unix/sysv/linux/pthread_kill.c:69
+#1  0x0000000000ab9523 in sigsegv_handler (signum=8, info=0x1bf, ctx=0x5700003fd480) at ../kern/sys.c:3437
+#2  <signal handler called>
+#3  0x0000000000ae0d49 in tmm_panic (format=0x1e9b7c0 "../modules/hudfilter/tcp4/tcp4.c:4418: %sdata present%s") at ../lib/stdio.c:1254
+#4  0x0000000000ae0d6b in tmm_assert (message=0x0) at ../lib/stdio.c:1263
+#5  0x0000000000b5e1bd in tcp4_drop (tp=0x57000a74ed00, len=1) at ../modules/hudfilter/tcp4/tcp4.c:4418
+#6  0x0000000000b67d41 in tcp4_predack_fastpath (private=<optimized out>, tiwin=<optimized out>, tp=<optimized out>, to=<optimized out>, 
+    th=<optimized out>, pkt=<optimized out>) at ../modules/hudfilter/tcp4/tcp4.c:6657
+#7  hud_tcp4_ingress (node=0x57000a74ecc0, cf=<optimized out>, pkt=0x57000e62ed40) at ../modules/hudfilter/tcp4/tcp4.c:1873
+#8  0x0000000000b5ab9b in hudQ_drain () at ../modules/hudfilter/hudfilter.c:847
+#9  0x00000000004c71fd in device_poll (param=<optimized out>, cycle=2) at ../dev/device.c:384
+#10 0x0000000000b45a76 in tmm_loop () at ../kern/tmm.c:1260
+#11 0x0000000000551fb4 in tmm_start (order=<optimized out>, n=943) at ../kern/tmm.c:427
+#12 0x0000000000b458a9 in tmm () at ../kern/tmm.c:482
+#13 0x00002ad815266ce0 in ?? () from /wendy/tools/share/sysroots/by_source/sources/bigip/v11.6.0-hf6/src.442.0/x86_64/lib64/libc.so.6
+#14 0x00007fff5ed8db80 in ?? ()
+#15 0x0000000000000000 in ?? ()
+
+
+#5  0x0000000000b5e1bd in tcp4_drop (tp=0x57000a74ed00, len=1) at ../modules/hudfilter/tcp4/tcp4.c:4418
+4418    ../modules/hudfilter/tcp4/tcp4.c: No such file or directory.
+
+(gdb) p tp->cf->egress_mtu 
+$1 = 1500
+
+(gdb) p min_path_mtu
+$2 = 296
+
+(ruling out ID536481 & ID553916 too)
+
+(gdb) p tp->iss 
+$3 = 2531369089
+
+(gdb)  p tp->snd_una
+$4 = 2531369089
+
+(gdb) p tp->state
+$5 = TCPS_ESTABLISHED
+
+
+#7  hud_tcp4_ingress (node=0x57000a74ecc0, cf=<optimized out>, pkt=0x57000e62ed40) at ../modules/hudfilter/tcp4/tcp4.c:1873
+1873    in ../modules/hudfilter/tcp4/tcp4.c
+
+(gdb) p th->ack     
+$6 = 2531369090
+
+
+*** END INTERNAL ***
+
+
+This is ID572495. This is marked as a severe vulnerability but *** do not inform the customer yet *** 
+
+
+Does the customer want an EHF ? If yes, 11.6.1 is due this month. Do they prefer to have it on 11.6.1 and take advantage of several hundred bug and vulnerability fixes proactively? Or stick to 11.6.0 (which will not get any further bug fixes until it goes EoSD) ?
+
+
+==========================
+
+sniff_mcp -i <configsync vlan>:h "port 6699"
+
+==========================
+
+
+
+-==============ASM ============
+telnet tmm 11211
+ 
+binlookup asm_sessiondp
+ 
+get/t /81aefbeb.*/asm.session.dp:*
+===========================END OF FILE
