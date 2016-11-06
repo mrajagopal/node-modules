@@ -1,21 +1,24 @@
 // roster.js
 
-// var calendar = require('node-calendar');
-
-// // var cal = new calendar.Calendar(calendar.SUNDAY);
-// var cal = new calendar.Calendar(0).itermonthdates(2016, 11);
-// console.log(cal);
-
-// var members = ['Andrew', 'Brian', 'Madhu', 'Satoshi'];
-
-// console.log(members);
-
 "use strict";
 var program = require('commander');
 var validator = require('validator');
+var sprintf=require("sprintf-js").sprintf;
 
 
-function getNextMonday(d)
+function Roster(inputDate, duration){
+  if (!(this instanceof Roster)){
+    return new Roster(inputDate, duration);
+  }
+  this.inputDate = new Date(inputDate);
+  this.duration = duration;
+  this.startDate = this.getNextMonday(this.inputDate);
+  this.endDate = this.getNextSunday(new Date(this.startDate).setMonth(this.startDate.getMonth() + parseInt(program.duration)));
+
+
+}
+
+Roster.prototype.getNextMonday = function getNextMonday(d)
 {
     d = new Date(d);
     var day = d.getDay();
@@ -24,7 +27,7 @@ function getNextMonday(d)
     {
         nextMondayDate = d.getDate();
     }
-    else //if (day == 0)
+    else
     {
         nextMondayDate = d.getDate() + (day == 0 ? 1 : (8-day));
     }
@@ -33,7 +36,7 @@ function getNextMonday(d)
     return new Date(d.setDate(nextMondayDate));
 }
 
-function getNextSunday(d)
+Roster.prototype.getNextSunday = function getNextSunday(d)
 {
     d = new Date(d);
     var day = d.getDay();
@@ -51,13 +54,15 @@ function getNextSunday(d)
     return new Date(d.setDate(nextSundayDate));
 }
 
-function getNextRosterDate(d, period)
+Roster.prototype.getNextRosterDate = function getNextRosterDate(d, period)
 {
     d = new Date(d);
     var nextDate = d.getDate() + 7*period;
     rosterDate = nextDate;
     return new Date(d.setDate(nextDate));
 }
+
+///////// Start of program //////////
 
 program.version('0.0.1');
 program.description('Roster generator using Node.js');
@@ -72,7 +77,7 @@ process.argv.forEach(function (val, index, array)
   console.log(index + ': ' + val);
 });
 
-/////////////////////////////////////
+//////////// Validate Inputs /////////////////////////
 
 if (!process.argv.slice(2).length)
 {
@@ -91,39 +96,22 @@ if (!validator.isISO8601(program.startDate))
     process.exit(0);
 }
 
-var inputDate = new Date(program.startDate);
-// console.log("Date is: ", inputDate.getDate());
-// console.log("Year is: ", inputDate.getFullYear());
-// console.log("UTC time: ", inputDate.getTime());
-// console.log("Day is: ", inputDate.getDay());
+/////// Compute start and end dates from inputs //////////
 
-var startDate = getNextMonday(inputDate);
-// console.log('Start day is: ', startDate.getDay());
-// console.log('Start date is: ', startDate.getDate());
+var roster = new Roster(program.startDate, program.duration);
+console.log('Roster Start Date: ', roster.startDate);
+console.log('Roster End Eate  : ', roster.endDate);
 
-var endDate = getNextSunday(new Date(startDate).setMonth(startDate.getMonth() + parseInt(program.duration)));
-
-var oneRoster = new Date(new Date(startDate).setDate(startDate.getDate() + parseInt(4*7)));
-console.log('example roster: ', oneRoster);
-
-console.log('Roster Start Date: ', startDate);
-console.log('Roster End Eate  : ', endDate);
+/////// Print the roster to the console //////
 
 var members = ['Andrew', 'Brian', 'Madhu', 'Satoshi'];
-console.log(members);
+console.log('Members of the group are: ', members);
 
-var rosterDate = new Date(startDate);
-// members.forEach(function(element) 
-// {
-//     // console.log(element, getNextRosterDate(rosterDate, 1));
-//     console.log(element, rosterDate);
-// });
+var rosterDate = new Date(roster.startDate);
 
 var i = 0;
-while (rosterDate < endDate)
+while (rosterDate < roster.endDate)
 {
-
-    console.log(rosterDate, members[(i++)%members.length]);
-    rosterDate = getNextRosterDate(rosterDate, 1);
-    // console.log(rosterDate);
+    console.log(sprintf("%-10s", members[(i++)%members.length]), rosterDate);
+    rosterDate = roster.getNextRosterDate(rosterDate, 1);
 }
