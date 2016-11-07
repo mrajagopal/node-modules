@@ -3,19 +3,31 @@
 "use strict";
 var program = require('commander');
 var validator = require('validator');
-var sprintf=require("sprintf-js").sprintf;
+var sprintf = require('sprintf-js').sprintf;
 
 
-function Roster(inputDate, duration){
-  if (!(this instanceof Roster)){
-    return new Roster(inputDate, duration);
-  }
-  this.inputDate = new Date(inputDate);
-  this.duration = duration;
-  this.startDate = this.getNextMonday(this.inputDate);
-  this.endDate = this.getNextSunday(new Date(this.startDate).setMonth(this.startDate.getMonth() + parseInt(program.duration)));
+function Roster(members, inputDate, duration)
+{
+    if (!(this instanceof Roster)){
+        return new Roster(inputDate, duration);
+    }
+    this.members = members;
+    this.msecsInDay = 1000*24*60*60;
+    this.week = 7;
+    this.inputDate = new Date(inputDate);
+    this.duration = duration;
+    this.startDate = this.getNextMonday(this.inputDate);
+    this.endDate = this.getNextSunday(new Date(this.startDate).setMonth(this.startDate.getMonth() + parseInt(program.duration)));
+    var diff = Math.floor((this.endDate - this.startDate)/this.msecsInDay);
+    console.log('diff: ', diff);
+    if (diff%(this.members.length*7))
+    {
+        diff += (this.week*this.members.length - diff%(this.members.length*this.week)) - 1;   // take away one day
+    }
 
-
+    console.log('diff adjusted: ', diff);
+    this.endDate = this.getNextSunday(new Date(this.endDate.setTime(this.startDate.getTime() + diff*this.msecsInDay)));
+    console.log('end date: ', this.endDate);
 }
 
 Roster.prototype.getNextMonday = function getNextMonday(d)
@@ -45,12 +57,12 @@ Roster.prototype.getNextSunday = function getNextSunday(d)
     {
         nextSundayDate = d.getDate();
     }
-    else //if (day == 0)
+    else
     {
         nextSundayDate = d.getDate() + (7-day);
     }
 
-    console.log(nextSundayDate);
+    // console.log(nextSundayDate);
     return new Date(d.setDate(nextSundayDate));
 }
 
@@ -98,20 +110,22 @@ if (!validator.isISO8601(program.startDate))
 
 /////// Compute start and end dates from inputs //////////
 
-var roster = new Roster(program.startDate, program.duration);
+var members = ['Andrew', 'Brian', 'Madhu', 'Satoshi'];
+var roster = new Roster(members, program.startDate, program.duration);
 console.log('Roster Start Date: ', roster.startDate);
 console.log('Roster End Eate  : ', roster.endDate);
-
+console.log('Members of the group are: ', roster.members);
 /////// Print the roster to the console //////
 
-var members = ['Andrew', 'Brian', 'Madhu', 'Satoshi'];
-console.log('Members of the group are: ', members);
+
 
 var rosterDate = new Date(roster.startDate);
 
 var i = 0;
-while (rosterDate < roster.endDate)
+while (rosterDate <= roster.endDate)
 {
-    console.log(sprintf("%-10s", members[(i++)%members.length]), rosterDate);
-    rosterDate = roster.getNextRosterDate(rosterDate, 1);
+    console.log(sprintf("%-10s", roster.members[(i++)%roster.members.length]), rosterDate);
+
+    // set roster period of each individual to 1 week
+    rosterDate = roster.getNextRosterDate(rosterDate, 1);    
 }
