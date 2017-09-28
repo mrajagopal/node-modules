@@ -6,12 +6,16 @@ var validator = require('validator');
 var fs = require('fs');
 
 var iControlRESTUrl = '/mgmt/shared/authn/login';
+var iControlRESTUploadUrl = '/mgmt/shared/file-transfer/uploads/';
+var basicAuth = 'admin:changeme';
 var tokenResp;
 
 program.version('0.0.1');
 program.description('Command line tool iControlREST using Node.js');
 program.option('--verbosity', 'Enable verbose logging');
 program.option('--ip <BIG-IP Address>', 'Hostname to analyze');
+program.option('--filename <path to filename>', 'Name of file to upload');
+program.option('--basicAuth', 'Use basic auth instead of token auth');
 program.parse(process.argv);
 
 // print process.argv
@@ -20,7 +24,7 @@ process.argv.forEach(function (val, index, array) {
 });
 /////////////////////////////////////
 
-if (!process.argv.slice(2).length){
+if (!process.argv.slice(3).length){
     console.log('Too few arguments');
     program.help();
     process.exit(0);
@@ -33,14 +37,21 @@ if(program.ip && !validator.isIP(program.ip, 4))
   process.exit(0);
 }
 
-var options = 
+if(!program.filename)
+{
+    console.log('No filename specified for upload');
+    program.help();
+    process.exit(0);
+}
+
+
+
+var options =
 {
     host: program.ip,
-    // host: '192.168.218.150',
     port: 443,
     method: 'POST',
     path: iControlRESTUrl,
-    // auth: 'admin:changeme',
     rejectUnauthorized: false,
     headers: 
     {
@@ -50,8 +61,8 @@ var options =
 
 var data = 
 {
-    username:"mrajagopal",
-    password:"changeme1234",
+    username:"admin",
+    password:"changeme",
     loginProviderName:"tmos"
 };
 
@@ -65,7 +76,7 @@ function getTokenResponse(resp)
         {
             tokenResp = JSON.parse(body);
             console.log('Acquired Token is: ', tokenResp.token.token);
-            uploadFile('myfile.txt');
+            uploadFile(program.filename);
         }
         else
         {
@@ -90,7 +101,7 @@ function uploadResp(resp)
     resp.on('data', function(body)
     {
         console.log(JSON.parse(body));
-        uploadFile('myfile.txt');
+        uploadFile(program.filename);
     });
 
     resp.on('error', function(e)
@@ -141,8 +152,13 @@ function uploadFile(filename)
         host: program.ip,
         port: 443,
         method: 'POST',
-        path: '/mgmt/shared/file-transfer/uploads/' + filename,
+        path: iControlRESTUploadUrl + filename,
         rejectUnauthorized: false,
+    }
+    
+    if (program.basicAuth)
+    {
+        uploadOptions.auth = basicAuth;
     }
 
     var chunkSize = 64 * 1024;
@@ -150,28 +166,25 @@ function uploadFile(filename)
         if (error) { throw error; }
         uploadOptions.headers = 
         {
-            'X-F5-Auth-Token': getToken(),
             'Content-Type' : 'text/plain',
             'Content-Range' : '0-'+ (stat.size-1)+'/'+stat.size
         }
-
-        // do your piping here
-        if(stat.size > chunkSize)
+        
+        if (program.basicAuth)
         {
-            uploadOptions.headers['Content-Range'] = '0-'+ (chunkSize-1)+'/'+stat.size;
+//            delete uploadOptions.headers['X-F5-Auth-Token'];
+            uploadOptions.headers['Authorization'] = 'Basic ' + new Buffer('admin' + ':' + 'changeme').toString('base64');
         }
         else
         {
-            uploadOptions.headers['Content-Range'] = '0-'+ (stat.size-1)+'/'+stat.size;
+            uploadOptions.headers['X-F5-Auth-Token'] = getToken();
         }
-        // uploadOptions.headers['Content-Range'] = '0-'+ (stat.size-1)+'/'+stat.size;
-        console.log(uploadOptions);
 
+        console.log(uploadOptions);
         var uploadReq = https.request(uploadOptions, processUploadResp);
 
         stream.on('data', function(data) {
-            console.log('writing stream data: ', data.length);// : ', data.size());
-            // var uploadReq = https.request(uploadOptions, function(resp)
+            console.log('writing stream data: ', data.length);
             uploadReq.write(data);
         });
 
@@ -182,12 +195,39 @@ function uploadFile(filename)
     });     
 }
 
-var req = https.request(options, getTokenResponse);
-console.log(data);
-req.write(JSON.stringify(data));
-req.end();
-
-req.on('error', function(e)
+if(program.basicAuth)
 {
-    console.error(e);
-});
+    var uploadOptions = {}
+//    {
+//        host: program.ip,
+//        port: 443,
+//        method: 'POST'
+//    }
+    uploadOptions.auth = basicAuth;
+    uploadOptions.headers =
+    {
+        'X-F5-Auth-Token': 'ASDSDGDFSH',
+        'Content-Type' : 'text/plain',
+        'Content-Range' : '0'
+    }
+    
+    console.log(uploadOptions);
+    delete uploadOptions.headers['X-F5-Auth-Token'];
+    uploadOptions.headers['Authorization'] = 'Basic ' + new Buffer('admin' + ':' + 'changeme').toString('base64');
+    console.log(uploadOptions);
+    
+    console.log('****** Using Basic Auth *****');
+    uploadFile(program.filename);
+}
+else
+{
+    var req = https.request(options, getTokenResponse);
+    console.log(data);
+    req.write(JSON.stringify(data));
+    req.end();
+
+    req.on('error', function(e)
+    {
+        console.error(e);
+    });
+}
