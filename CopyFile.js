@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 "use strict";
+
 let https = require('https');
 var program = require('commander');
 var validator = require('validator');
