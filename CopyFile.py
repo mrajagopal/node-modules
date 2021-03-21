@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 def _upload(host, creds, fp):
  
     chunk_size = 64 * 1024
